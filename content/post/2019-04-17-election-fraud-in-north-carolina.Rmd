@@ -1,0 +1,534 @@
+---
+title: Election Fraud in North Carolina
+author: ~
+date: '2019-04-17'
+slug: election-fraud-in-north-carolina
+categories: ["R"]
+tags: []
+type: post
+description: description
+keywords:
+  - key
+  - words
+topics:
+  - topic 1
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 6)
+library(tidyverse)
+library(magrittr)
+library(reshape2)
+library(RColorBrewer)
+library(knitr)
+```
+
+# Prep Work
+
+## Load Election Data
+
+This project will be working with the precinct by precinct results of the 11/06/2018 midterm election in the state of North Carolina. These results were obtained from the North Carolina State Board of Elections & Ethics Enforcement website on 11/30/2018 at the following URL: https://dl.ncsbe.gov/ENRS/2018_11_06/results_pct_20181106.zip
+```{r data-in, message = FALSE, warning=FALSE}
+nc_results <- read_delim(
+  "C:/datasets/results_pct_20181106.txt", "\t",
+  escape_double = FALSE, trim_ws = TRUE
+)
+
+names(nc_results) <- names(nc_results) %>% 
+  tolower() %>%
+  str_replace_all(" ", "_")
+
+nc_results <- nc_results %>%
+  mutate(
+    choice = if_else(choice == "" | is.na(choice), "NONE", choice),
+    choice_party = if_else(
+      choice_party == "" | is.na(choice_party),
+      "NONE",
+      choice_party
+    )
+  ) %>%
+  mutate_if(is.numeric, as.integer) %>%
+  rename(early = one_stop, mail = absentee_by_mail)
+```
+
+## Create Tables
+
+### District 9
+
+```{r d9}
+house_d9 <- nc_results %>%
+  filter(contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09")
+
+d9_candidate_by_county <- house_d9 %>%
+  group_by(county, choice) %>%
+  summarise_at(vars("total_votes", "election_day", "early", "mail", "provisional"), sum) %>%
+  ungroup()
+
+d9_county_totals <- d9_candidate_by_county %>%
+  group_by(county) %>%
+  select(-choice) %>%
+  summarise_all(sum) %>%
+  ungroup()
+
+d9_by_county <-
+  bind_rows(
+    d9_candidate_by_county,
+    d9_county_totals %>% mutate(choice = "county_total")
+  ) %>%
+  arrange(county)
+```
+
+### All North Carolina US House Races
+```{r nc-house-races}
+nc_house_all <- nc_results %>%
+  filter(str_detect(contest_name, "US HOUSE OF REPRESENTATIVES")) %>%
+  mutate_at(c("contest_name", "choice", "choice_party"), factor)
+
+all_house_candiate_by_county <- nc_house_all %>%
+  group_by(contest_name, county, choice, choice_party) %>%
+  summarise_at(vars("total_votes", "election_day", "early", "mail", "provisional"), sum) %>%
+  ungroup()
+
+house_county_totals <- all_house_candiate_by_county %>%
+  group_by(contest_name, county) %>%
+  select(-choice, -choice_party) %>%
+  summarise_all(sum) %>%
+  ungroup()
+
+house_by_county <-
+  bind_rows(
+    all_house_candiate_by_county %>%
+      mutate_at(c("county", "contest_name", "choice", "choice_party"), as.character),
+    house_county_totals %>%
+      mutate(county = as.character(county), contest_name = as.character(contest_name), choice = "county_total", choice_party = "county_total")
+  ) %>%
+  arrange(contest_name, county) %>%
+  mutate_at(c("county", "contest_name", "choice", "choice_party"), factor)
+```
+
+## Set up Colors
+
+```{r colorsetup}
+red_blue_green <- brewer.pal(3, "Set1")
+red <- red_blue_green[1]
+blue <- red_blue_green[2]
+green <- red_blue_green[3]
+
+d9_color_scale <-
+  scale_fill_manual(
+    name = "Candidate",
+    values = setNames(red_blue_green, c("Mark Harris", "Dan McCready", "Jeff Scott"))
+  )
+
+party_color_scale <-
+  scale_fill_manual(
+    name = "Party",
+    values = setNames(red_blue_green, c("REP", "DEM", "OTHER"))
+  )
+```
+
+# The 9th Congressional District
+
+## Results of the Race for House of Representatives
+
+```{r district9overall,results="hold",collapse=TRUE}
+table <- d9_by_county %>%
+  filter(choice != "county_total") %>%
+  group_by(choice) %>%
+  summarise(votes = sum(total_votes))
+
+ggplot(data = table) +
+  geom_col(aes(x = fct_reorder(choice, votes), y = votes, fill = choice)) +
+  d9_color_scale +
+  xlab("Candidate") +
+  ylab("Votes") +
+  scale_y_continuous(labels = scales::comma_format()) +
+  ggtitle("Overall Results")
+
+table %>%
+  arrange(votes) %>%
+  mutate(percent = votes / sum(votes)) %>%
+  kable(caption = "9th Congressional District Results")
+```
+
+## County Level Results
+
+```{r district9counties, results="hold"}
+county_order <- d9_county_totals %>%
+  arrange(total_votes) %>%
+  pull(county) %>%
+  as.character()
+
+table <- d9_candidate_by_county %>%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(data = table) +
+  geom_col(aes(x = county, y = total_votes, fill = choice)) +
+  d9_color_scale +
+  scale_y_continuous(labels = scales::comma_format()) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("County")+
+  ylab("Votes")+
+  ggtitle("County Vote Totals")
+
+ggplot(
+  data = table,
+  aes(x = county, weight = total_votes, fill = choice)
+) +
+  d9_color_scale +
+  geom_bar(position = "fill") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = "Share of Votes", x = "County") +
+  geom_hline(yintercept = .5) +
+  ggtitle("County Vote Split")
+
+table <-
+  d9_county_totals %>%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    election_day,
+    early,
+    mail,
+    provisional
+  ) %>%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(
+  table %>% select(-total_votes),
+  aes(x = county, y = vote_count, fill = vote_type),
+  position_stack()
+) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab("County") +
+  ylab("Votes") +
+  ggtitle("Breakdown of Voting Methods by County")
+
+ggplot(
+  table %>% select(-total_votes),
+  aes(x = county, weight = vote_count, fill = vote_type)
+) +
+  geom_bar(position = "fill") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = "Percentage of Votes Cast", x = "County") +
+  ggtitle("Proportion of Voting Methods by County")
+```
+
+## 9th District Vote by Mail vs Voting in Person 
+
+```{r d9-mailin-inperson}
+table <- d9_by_county %>%
+  mutate(in_person = total_votes - mail) %>%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    total_votes,
+    election_day,
+    early,
+    mail,
+    provisional,
+    in_person
+  ) %>%
+  filter(!choice == "county_total") %>%
+  filter(vote_type == "mail" | vote_type == "in_person") %>%
+  group_by(county, vote_type) %>%
+  mutate(county_total = sum(vote_count)) %>%
+  mutate(share = vote_count / county_total) %>%
+  select(-vote_count, -county_total) %>%
+  filter(choice == "Dan McCready") %>%
+  spread(vote_type, share) %>%
+  ungroup() %>%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(data = table) +
+  geom_col(
+    aes(x = county, y = mail - in_person, fill = in_person < mail)
+  ) +
+  scale_fill_manual(values = setNames(c(blue, red), c(TRUE, FALSE))) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = "Share of Vote by Mail vs Share of In Person Votes") +
+  ggtitle("Partisan Lean of Vote by Mail vs in Person Voting")
+```
+
+# State Wide Trends
+
+## Overview of US House of Representatives Races
+
+```{r houseTable,results="hold",collapse=TRUE}
+statewide_shares <- all_house_candiate_by_county %>%
+  mutate(choice_party = if_else(choice_party == "DEM" | choice_party == "REP", as.character(choice_party), "OTHER")) %>%
+  group_by(choice_party) %>%
+  summarise(party_early = sum(early), party_election_day = sum(election_day), party_mail = sum(mail), party_in_person = sum(total_votes - mail), party_total = sum(total_votes)) %>%
+  ungroup() %>%
+  mutate(
+    party_election_day_share = party_election_day / sum(party_election_day),
+    party_early_share = party_early / sum(party_early),
+    party_mail_share = party_mail / sum(party_mail),
+    party_in_person_share = party_in_person / sum(party_in_person),
+    party_total_share = party_total / sum(party_total)
+  ) %>%
+  mutate(choice_party = fct_reorder(choice_party, party_total)) %>%
+  arrange(party_total)
+
+statewide_shares_no_uncontested <- all_house_candiate_by_county %>%
+  filter(contest_name != "US HOUSE OF REPRESENTATIVES DISTRICT 03") %>%
+  mutate(choice_party = if_else(choice_party == "DEM" | choice_party == "REP", as.character(choice_party), "OTHER")) %>%
+  group_by(choice_party) %>%
+  summarise(party_early = sum(early), party_election_day = sum(election_day), party_mail = sum(mail), party_in_person = sum(total_votes - mail), party_total = sum(total_votes)) %>%
+  ungroup() %>%
+  mutate(party_election_day_share = party_election_day / sum(party_election_day), party_early_share = party_early / sum(party_early), party_mail_share = party_mail / sum(party_mail), party_in_person_share = party_in_person / sum(party_in_person), party_total_share = party_total / sum(party_total)) %>%
+  mutate(choice_party = fct_reorder(choice_party, party_total)) %>%
+  arrange(party_total)
+
+statewide_shares %>% kable(caption = "All House Races")
+statewide_shares_no_uncontested %>% kable(caption = "Contested House Races")
+
+table <- all_house_candiate_by_county %>%
+  select(contest_name, choice_party, total_votes) %>%
+  group_by(contest_name, choice_party) %>%
+  summarize(Votes = sum(total_votes)) %>%
+  ungroup() %>%
+  mutate(
+    contest_name = str_remove(contest_name, "US HOUSE OF REPRESENTATIVES "),
+    choice_party = if_else(choice_party == "DEM" | choice_party == "REP", as.character(choice_party), "OTHER")
+  )
+
+ggplot(data = table, aes(x = contest_name, y = Votes, fill = choice_party)) +
+  geom_col() +
+  party_color_scale +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(x = "District", y = "Votes") +
+  ggtitle("Results of All US House Races by Total Votes")
+
+ggplot(data = table, aes(x = contest_name, weight = Votes, fill = choice_party)) +
+  party_color_scale +
+  geom_bar(position = "fill") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = "District", y = "Share of Votes") + geom_hline(yintercept = .5) +
+  ggtitle("Results of All US House Races by Proportion of Vote Recieved")
+
+
+ggplot(data = statewide_shares, aes(x = choice_party, y = party_total, fill = choice_party)) +
+  geom_col() +
+  party_color_scale + labs(x = "Party", y = "Votes") +
+  ggtitle("Total Votes Recieved by Each Party Across All North Carolina US House Races")
+
+ggplot(data = statewide_shares_no_uncontested) +
+  geom_col(aes(x = choice_party, y = party_total, fill = choice_party)) +
+  party_color_scale +
+  labs(x = "Party", y = "Votes") +
+  ggtitle("Total Votes Recieved by Each Party In Contested US House Races In North Carolina")
+```
+
+### Number of Mail Ballots Vs Number of Total Ballots
+
+```{r MailRate}
+ggplot(data = house_county_totals, aes(x = total_votes, y = mail)) +
+  geom_point(
+    data = house_county_totals %>%
+      filter(
+        county == "BLADEN",
+        contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"
+      ),
+    aes(x = total_votes, y = mail), color = "yellow", size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 300000, by = 50000), labels = scales::comma) +
+  xlab("Total Votes Cast") +
+  ylab("Votes Cast by Mail") +
+  ggtitle("Number of Mail in Ballots vs Total Number of Ballots")
+
+ggplot(data = house_county_totals, aes(x = total_votes, y = mail)) +
+  geom_point(
+    data = house_county_totals %>%
+      filter(
+        county == "BLADEN",
+        contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"
+      ),
+    aes(x = total_votes, y = mail), color = "yellow", size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 10000, by = 2000), labels = scales::comma) +
+  xlab("Total Votes Cast") +
+  ylab("Votes Cast by Mail") +
+  coord_cartesian(xlim = c(0, 10000), ylim = c(0, 1000)) +
+  ggtitle("Number of Mail in Ballots vs Total Number of Ballots in Small Counties")
+
+ggplot(data = house_county_totals, aes(x = total_votes, y = mail / total_votes)) +
+  geom_point(
+    data = house_county_totals %>%
+      filter(
+        county == "BLADEN",
+        contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"
+      ),
+    aes(x = total_votes, y = mail / total_votes), color = "yellow", size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 300000, by = 50000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab("Percentage of Votes Cast by Mail") +
+  xlab("Total Votes Cast in County") +
+  ggtitle("Rate of Mail in Voting vs Total Number of Ballots")
+
+ggplot(data = house_county_totals, aes(x = total_votes, y = mail / total_votes)) +
+  geom_point(data = house_county_totals %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = total_votes, y = mail / total_votes), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 10000, by = 2000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) + coord_cartesian(xlim = c(0, 10000)) +
+  ylab("Percentage of Vote by Mail") +
+  xlab("Total Votes Cast in County") +
+  ggtitle("Rate of Mail in Voting vs Total Number of Ballots in Small Counties")
+```
+
+### Vote by Mail vs In Person Voting
+
+```{r mail-in-vs-in-person, message = FALSE}
+table3 <-
+  house_by_county %>%
+  mutate(in_person = total_votes - mail) %>%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    total_votes,
+    election_day,
+    early,
+    mail,
+    provisional,
+    in_person
+  ) %>%
+  filter(!choice == "county_total") %>%
+  group_by(contest_name, county, vote_type) %>%
+  mutate(county_total = sum(vote_count)) %>%
+  mutate(share = vote_count / county_total) %>%
+  select(-vote_count, -county_total) %>%
+  filter(choice_party == "DEM" | choice_party == "REP") %>%
+  spread(vote_type, share) %>%
+  rename_at(vars(-contest_name, -county, -choice, -choice_party), function(x)(paste0(x, "_share")))
+
+table3 %<>% full_join(house_county_totals) %>%
+  filter(contest_name != "US HOUSE OF REPRESENTATIVES DISTRICT 03")
+
+ggplot(data = table3, aes(x = in_person_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = in_person_share, y = mail_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) + geom_abline(intercept = 0, slope = 1) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  xlab("In Person Votes") +
+  ylab("Vote by Mail") +
+  ggtitle("Partisan Gap Between Vote by Mail and In Person Voting")
+
+ggplot(data = table3, aes(x = early_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = early_share, y = mail_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) + scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  xlab("Early Voting") +
+  ylab("Vote by Mail") +
+  ggtitle("Partisan Gap Between Vote by Mail and Early Voters")
+
+ggplot(data = table3, aes(x = election_day_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = election_day_share, y = mail_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) + scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  xlab("Election Day") +
+  ylab("Vote by Mail") +
+ggtitle("Partisan Gap Between Vote by Mail and Election Day Voters")
+```
+
+### Early Voting vs Election Day Voting
+```{r early-vs-election-day,results="hold"}
+ggplot(data = table3, aes(x = election_day_share, y = early_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = election_day_share, y = early_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  ggtitle("Partisan Gap Between Early Voters and Election Day Voters")
+
+DemLM <- lm(
+  early_share ~ election_day_share,
+  data = table3 %>% filter(choice_party == "DEM")
+)
+RepLM <- lm(
+  early_share ~ election_day_share,
+  data = table3 %>% filter(choice_party == "REP")
+)
+summary(DemLM) %>% coefficients() %>% kable(caption = "Democrat")
+summary(RepLM) %>% coefficients() %>% kable(caption = "Republican")
+```
+
+### Partisan Gap Between Election Day and Early Voting
+
+```{r early-vs-election-day-rate,results="hold"}
+ggplot(data = table3, aes(x = election_day / total_votes, y = early_share - election_day_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = election_day / total_votes, y = early_share - election_day_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) + geom_hline(yintercept = 0) +
+  scale_y_continuous(labels = scales::percent_format()) + scale_x_continuous(labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  labs(x = "Percentage of Total Votes Cast on Election Day", y = "Share of Early Ballots vs Election Day Ballots") +
+  ggtitle("Gap between Early and Election Day Voting vs Rate of Election Day Voting")
+
+DemLM <- lm(
+  I(early_share - election_day_share) ~ I(election_day / total_votes),
+  data = table3 %>% filter(choice_party == "DEM")
+)
+RepLM <- lm(I(early_share - election_day_share) ~ I(election_day / total_votes),
+  data = table3 %>% filter(choice_party == "REP")
+)
+summary(DemLM) %>% coefficients() %>% kable(caption = "Democrat")
+summary(RepLM) %>% coefficients() %>% kable(caption = "Republican")
+```
+
+### Any Relationship Between Vote by Mail Prevalence and Partisan Lean
+
+```{r mail-in-rate, results="hold",collapse=TRUE}
+ggplot(data = table3, aes(x = mail / total_votes, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = mail / total_votes, y = mail_share), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  geom_hline(yintercept = .5) +
+  scale_x_continuous(labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  labs(x = "Percentage of Total Votes Cast by Mail", y = "Share of Mail In Ballots") +
+  ggtitle("Percentage of Mail in Ballots Won vs Rate of Voting by Mail")
+
+table3 <- table3 %>%
+  mutate(mail_rate = mail / total_votes, mail_gap = mail_share - in_person_share)
+
+graph <-
+  ggplot(data = table3, aes(x = mail_rate, y = mail_gap, color = choice_party)) +
+  geom_point(data = table3 %>% filter(county == "BLADEN", contest_name == "US HOUSE OF REPRESENTATIVES DISTRICT 09"), aes(x = mail_rate, y = mail_gap), color = "yellow", size = 5) +
+  geom_point() +
+  geom_smooth(method = "lm", formula = y ~ x) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_continuous(labels = scales::percent_format()) +
+  geom_hline(yintercept = 0) +
+  scale_color_manual(values = setNames(c(blue, red), c("DEM", "REP"))) +
+  xlab("Percentage of Total Votes Cast by Mail") +
+  ylab("Difference Between Share of Mail In and In Person Ballots") +
+  ggtitle("Rate of Voting by Mail vs Mail/In Person Partisan Gap")
+
+DemLM <- lm(mail_gap ~ mail_rate, data = table3 %>% filter(choice_party == "DEM"))
+RepLM <- lm(mail_gap ~ mail_rate, data = table3 %>% filter(choice_party == "REP"))
+summary(DemLM) %>% coefficients() %>% kable(caption = "Democrat")
+summary(RepLM) %>% coefficients() %>% kable(caption = "Republican")
+graph
+```

@@ -1,0 +1,833 @@
+---
+title: Election Fraud in North Carolina
+author: ~
+date: '2019-04-17'
+slug: election-fraud-in-north-carolina
+categories: ["R"]
+tags: []
+type: post
+description: description
+keywords:
+  - key
+  - words
+topics:
+  - topic 1
+---
+
+
+
+<div id="prep-work" class="section level1">
+<h1>Prep Work</h1>
+<div id="load-election-data" class="section level2">
+<h2>Load Election Data</h2>
+<p>This project will be working with the precinct by precinct results of the 11/06/2018 midterm election in the state of North Carolina. These results were obtained from the North Carolina State Board of Elections &amp; Ethics Enforcement website on 11/30/2018 at the following URL: <a href="https://dl.ncsbe.gov/ENRS/2018_11_06/results_pct_20181106.zip" class="uri">https://dl.ncsbe.gov/ENRS/2018_11_06/results_pct_20181106.zip</a></p>
+<pre class="r"><code>nc_results &lt;- read_delim(
+  &quot;C:/datasets/results_pct_20181106.txt&quot;, &quot;\t&quot;,
+  escape_double = FALSE, trim_ws = TRUE
+)
+
+names(nc_results) &lt;- names(nc_results) %&gt;% 
+  tolower() %&gt;%
+  str_replace_all(&quot; &quot;, &quot;_&quot;)
+
+nc_results &lt;- nc_results %&gt;%
+  mutate(
+    choice = if_else(choice == &quot;&quot; | is.na(choice), &quot;NONE&quot;, choice),
+    choice_party = if_else(
+      choice_party == &quot;&quot; | is.na(choice_party),
+      &quot;NONE&quot;,
+      choice_party
+    )
+  ) %&gt;%
+  mutate_if(is.numeric, as.integer) %&gt;%
+  rename(early = one_stop, mail = absentee_by_mail)</code></pre>
+</div>
+<div id="create-tables" class="section level2">
+<h2>Create Tables</h2>
+<div id="district-9" class="section level3">
+<h3>District 9</h3>
+<pre class="r"><code>house_d9 &lt;- nc_results %&gt;%
+  filter(contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;)
+
+d9_candidate_by_county &lt;- house_d9 %&gt;%
+  group_by(county, choice) %&gt;%
+  summarise_at(vars(&quot;total_votes&quot;, &quot;election_day&quot;, &quot;early&quot;, &quot;mail&quot;, &quot;provisional&quot;), sum) %&gt;%
+  ungroup()
+
+d9_county_totals &lt;- d9_candidate_by_county %&gt;%
+  group_by(county) %&gt;%
+  select(-choice) %&gt;%
+  summarise_all(sum) %&gt;%
+  ungroup()
+
+d9_by_county &lt;-
+  bind_rows(
+    d9_candidate_by_county,
+    d9_county_totals %&gt;% mutate(choice = &quot;county_total&quot;)
+  ) %&gt;%
+  arrange(county)</code></pre>
+</div>
+<div id="all-north-carolina-us-house-races" class="section level3">
+<h3>All North Carolina US House Races</h3>
+<pre class="r"><code>nc_house_all &lt;- nc_results %&gt;%
+  filter(str_detect(contest_name, &quot;US HOUSE OF REPRESENTATIVES&quot;)) %&gt;%
+  mutate_at(c(&quot;contest_name&quot;, &quot;choice&quot;, &quot;choice_party&quot;), factor)
+
+all_house_candiate_by_county &lt;- nc_house_all %&gt;%
+  group_by(contest_name, county, choice, choice_party) %&gt;%
+  summarise_at(vars(&quot;total_votes&quot;, &quot;election_day&quot;, &quot;early&quot;, &quot;mail&quot;, &quot;provisional&quot;), sum) %&gt;%
+  ungroup()
+
+house_county_totals &lt;- all_house_candiate_by_county %&gt;%
+  group_by(contest_name, county) %&gt;%
+  select(-choice, -choice_party) %&gt;%
+  summarise_all(sum) %&gt;%
+  ungroup()
+
+house_by_county &lt;-
+  bind_rows(
+    all_house_candiate_by_county %&gt;%
+      mutate_at(c(&quot;county&quot;, &quot;contest_name&quot;, &quot;choice&quot;, &quot;choice_party&quot;), as.character),
+    house_county_totals %&gt;%
+      mutate(county = as.character(county), contest_name = as.character(contest_name), choice = &quot;county_total&quot;, choice_party = &quot;county_total&quot;)
+  ) %&gt;%
+  arrange(contest_name, county) %&gt;%
+  mutate_at(c(&quot;county&quot;, &quot;contest_name&quot;, &quot;choice&quot;, &quot;choice_party&quot;), factor)</code></pre>
+</div>
+</div>
+<div id="set-up-colors" class="section level2">
+<h2>Set up Colors</h2>
+<pre class="r"><code>red_blue_green &lt;- brewer.pal(3, &quot;Set1&quot;)
+red &lt;- red_blue_green[1]
+blue &lt;- red_blue_green[2]
+green &lt;- red_blue_green[3]
+
+d9_color_scale &lt;-
+  scale_fill_manual(
+    name = &quot;Candidate&quot;,
+    values = setNames(red_blue_green, c(&quot;Mark Harris&quot;, &quot;Dan McCready&quot;, &quot;Jeff Scott&quot;))
+  )
+
+party_color_scale &lt;-
+  scale_fill_manual(
+    name = &quot;Party&quot;,
+    values = setNames(red_blue_green, c(&quot;REP&quot;, &quot;DEM&quot;, &quot;OTHER&quot;))
+  )</code></pre>
+</div>
+</div>
+<div id="the-9th-congressional-district" class="section level1">
+<h1>The 9th Congressional District</h1>
+<div id="results-of-the-race-for-house-of-representatives" class="section level2">
+<h2>Results of the Race for House of Representatives</h2>
+<pre class="r"><code>table &lt;- d9_by_county %&gt;%
+  filter(choice != &quot;county_total&quot;) %&gt;%
+  group_by(choice) %&gt;%
+  summarise(votes = sum(total_votes))
+
+ggplot(data = table) +
+  geom_col(aes(x = fct_reorder(choice, votes), y = votes, fill = choice)) +
+  d9_color_scale +
+  xlab(&quot;Candidate&quot;) +
+  ylab(&quot;Votes&quot;) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  ggtitle(&quot;Overall Results&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/district9overall-1.png" width="1152" /></p>
+<pre class="r"><code>
+table %&gt;%
+  arrange(votes) %&gt;%
+  mutate(percent = votes / sum(votes)) %&gt;%
+  kable(caption = &quot;9th Congressional District Results&quot;)</code></pre>
+<table>
+<caption><span id="tab:district9overall">Table 1: </span>9th Congressional District Results</caption>
+<thead>
+<tr class="header">
+<th align="left">choice</th>
+<th align="right">votes</th>
+<th align="right">percent</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">Jeff Scott</td>
+<td align="right">5130</td>
+<td align="right">0.0181454</td>
+</tr>
+<tr class="even">
+<td align="left">Dan McCready</td>
+<td align="right">138341</td>
+<td align="right">0.4893268</td>
+</tr>
+<tr class="odd">
+<td align="left">Mark Harris</td>
+<td align="right">139246</td>
+<td align="right">0.4925279</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="county-level-results" class="section level2">
+<h2>County Level Results</h2>
+<pre class="r"><code>county_order &lt;- d9_county_totals %&gt;%
+  arrange(total_votes) %&gt;%
+  pull(county) %&gt;%
+  as.character()
+
+table &lt;- d9_candidate_by_county %&gt;%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(data = table) +
+  geom_col(aes(x = county, y = total_votes, fill = choice)) +
+  d9_color_scale +
+  scale_y_continuous(labels = scales::comma_format()) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab(&quot;County&quot;)+
+  ylab(&quot;Votes&quot;)+
+  ggtitle(&quot;County Vote Totals&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/district9counties-1.png" width="1152" /></p>
+<pre class="r"><code>ggplot(
+  data = table,
+  aes(x = county, weight = total_votes, fill = choice)
+) +
+  d9_color_scale +
+  geom_bar(position = &quot;fill&quot;) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = &quot;Share of Votes&quot;, x = &quot;County&quot;) +
+  geom_hline(yintercept = .5) +
+  ggtitle(&quot;County Vote Split&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/district9counties-2.png" width="1152" /></p>
+<pre class="r"><code>table &lt;-
+  d9_county_totals %&gt;%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    election_day,
+    early,
+    mail,
+    provisional
+  ) %&gt;%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(
+  table %&gt;% select(-total_votes),
+  aes(x = county, y = vote_count, fill = vote_type),
+  position_stack()
+) +
+  geom_col() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  xlab(&quot;County&quot;) +
+  ylab(&quot;Votes&quot;) +
+  ggtitle(&quot;Breakdown of Voting Methods by County&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/district9counties-3.png" width="1152" /></p>
+<pre class="r"><code>ggplot(
+  table %&gt;% select(-total_votes),
+  aes(x = county, weight = vote_count, fill = vote_type)
+) +
+  geom_bar(position = &quot;fill&quot;) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = &quot;Percentage of Votes Cast&quot;, x = &quot;County&quot;) +
+  ggtitle(&quot;Proportion of Voting Methods by County&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/district9counties-4.png" width="1152" /></p>
+</div>
+<div id="th-district-vote-by-mail-vs-voting-in-person" class="section level2">
+<h2>9th District Vote by Mail vs Voting in Person</h2>
+<pre class="r"><code>table &lt;- d9_by_county %&gt;%
+  mutate(in_person = total_votes - mail) %&gt;%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    total_votes,
+    election_day,
+    early,
+    mail,
+    provisional,
+    in_person
+  ) %&gt;%
+  filter(!choice == &quot;county_total&quot;) %&gt;%
+  filter(vote_type == &quot;mail&quot; | vote_type == &quot;in_person&quot;) %&gt;%
+  group_by(county, vote_type) %&gt;%
+  mutate(county_total = sum(vote_count)) %&gt;%
+  mutate(share = vote_count / county_total) %&gt;%
+  select(-vote_count, -county_total) %&gt;%
+  filter(choice == &quot;Dan McCready&quot;) %&gt;%
+  spread(vote_type, share) %&gt;%
+  ungroup() %&gt;%
+  mutate(county = factor(county, levels = county_order))
+
+ggplot(data = table) +
+  geom_col(
+    aes(x = county, y = mail - in_person, fill = in_person &lt; mail)
+  ) +
+  scale_fill_manual(values = setNames(c(blue, red), c(TRUE, FALSE))) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme(legend.position = &quot;none&quot;, axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(y = &quot;Share of Vote by Mail vs Share of In Person Votes&quot;) +
+  ggtitle(&quot;Partisan Lean of Vote by Mail vs in Person Voting&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/d9-mailin-inperson-1.png" width="1152" /></p>
+</div>
+</div>
+<div id="state-wide-trends" class="section level1">
+<h1>State Wide Trends</h1>
+<div id="overview-of-us-house-of-representatives-races" class="section level2">
+<h2>Overview of US House of Representatives Races</h2>
+<pre class="r"><code>statewide_shares &lt;- all_house_candiate_by_county %&gt;%
+  mutate(choice_party = if_else(choice_party == &quot;DEM&quot; | choice_party == &quot;REP&quot;, as.character(choice_party), &quot;OTHER&quot;)) %&gt;%
+  group_by(choice_party) %&gt;%
+  summarise(party_early = sum(early), party_election_day = sum(election_day), party_mail = sum(mail), party_in_person = sum(total_votes - mail), party_total = sum(total_votes)) %&gt;%
+  ungroup() %&gt;%
+  mutate(
+    party_election_day_share = party_election_day / sum(party_election_day),
+    party_early_share = party_early / sum(party_early),
+    party_mail_share = party_mail / sum(party_mail),
+    party_in_person_share = party_in_person / sum(party_in_person),
+    party_total_share = party_total / sum(party_total)
+  ) %&gt;%
+  mutate(choice_party = fct_reorder(choice_party, party_total)) %&gt;%
+  arrange(party_total)
+
+statewide_shares_no_uncontested &lt;- all_house_candiate_by_county %&gt;%
+  filter(contest_name != &quot;US HOUSE OF REPRESENTATIVES DISTRICT 03&quot;) %&gt;%
+  mutate(choice_party = if_else(choice_party == &quot;DEM&quot; | choice_party == &quot;REP&quot;, as.character(choice_party), &quot;OTHER&quot;)) %&gt;%
+  group_by(choice_party) %&gt;%
+  summarise(party_early = sum(early), party_election_day = sum(election_day), party_mail = sum(mail), party_in_person = sum(total_votes - mail), party_total = sum(total_votes)) %&gt;%
+  ungroup() %&gt;%
+  mutate(party_election_day_share = party_election_day / sum(party_election_day), party_early_share = party_early / sum(party_early), party_mail_share = party_mail / sum(party_mail), party_in_person_share = party_in_person / sum(party_in_person), party_total_share = party_total / sum(party_total)) %&gt;%
+  mutate(choice_party = fct_reorder(choice_party, party_total)) %&gt;%
+  arrange(party_total)
+
+statewide_shares %&gt;% kable(caption = &quot;All House Races&quot;)
+statewide_shares_no_uncontested %&gt;% kable(caption = &quot;Contested House Races&quot;)
+
+table &lt;- all_house_candiate_by_county %&gt;%
+  select(contest_name, choice_party, total_votes) %&gt;%
+  group_by(contest_name, choice_party) %&gt;%
+  summarize(Votes = sum(total_votes)) %&gt;%
+  ungroup() %&gt;%
+  mutate(
+    contest_name = str_remove(contest_name, &quot;US HOUSE OF REPRESENTATIVES &quot;),
+    choice_party = if_else(choice_party == &quot;DEM&quot; | choice_party == &quot;REP&quot;, as.character(choice_party), &quot;OTHER&quot;)
+  )
+
+ggplot(data = table, aes(x = contest_name, y = Votes, fill = choice_party)) +
+  geom_col() +
+  party_color_scale +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  scale_y_continuous(labels = scales::comma_format()) +
+  labs(x = &quot;District&quot;, y = &quot;Votes&quot;) +
+  ggtitle(&quot;Results of All US House Races by Total Votes&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/houseTable-1.png" width="1152" /></p>
+<pre class="r"><code>
+ggplot(data = table, aes(x = contest_name, weight = Votes, fill = choice_party)) +
+  party_color_scale +
+  geom_bar(position = &quot;fill&quot;) +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+  labs(x = &quot;District&quot;, y = &quot;Share of Votes&quot;) + geom_hline(yintercept = .5) +
+  ggtitle(&quot;Results of All US House Races by Proportion of Vote Recieved&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/houseTable-2.png" width="1152" /></p>
+<pre class="r"><code>
+
+ggplot(data = statewide_shares, aes(x = choice_party, y = party_total, fill = choice_party)) +
+  geom_col() +
+  party_color_scale + labs(x = &quot;Party&quot;, y = &quot;Votes&quot;) +
+  ggtitle(&quot;Total Votes Recieved by Each Party Across All North Carolina US House Races&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/houseTable-3.png" width="1152" /></p>
+<pre class="r"><code>
+ggplot(data = statewide_shares_no_uncontested) +
+  geom_col(aes(x = choice_party, y = party_total, fill = choice_party)) +
+  party_color_scale +
+  labs(x = &quot;Party&quot;, y = &quot;Votes&quot;) +
+  ggtitle(&quot;Total Votes Recieved by Each Party In Contested US House Races In North Carolina&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/houseTable-4.png" width="1152" /></p>
+<table>
+<caption><span id="tab:houseTable">Table 2: </span>All House Races</caption>
+<thead>
+<tr class="header">
+<th align="left">choice_party</th>
+<th align="right">party_early</th>
+<th align="right">party_election_day</th>
+<th align="right">party_mail</th>
+<th align="right">party_in_person</th>
+<th align="right">party_total</th>
+<th align="right">party_election_day_share</th>
+<th align="right">party_early_share</th>
+<th align="right">party_mail_share</th>
+<th align="right">party_in_person_share</th>
+<th align="right">party_total_share</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">OTHER</td>
+<td align="right">17905</td>
+<td align="right">26693</td>
+<td align="right">1181</td>
+<td align="right">45042</td>
+<td align="right">46223</td>
+<td align="right">0.0163671</td>
+<td align="right">0.0093230</td>
+<td align="right">0.0124635</td>
+<td align="right">0.0126230</td>
+<td align="right">0.0126189</td>
+</tr>
+<tr class="even">
+<td align="left">DEM</td>
+<td align="right">1011541</td>
+<td align="right">695408</td>
+<td align="right">54898</td>
+<td align="right">1715988</td>
+<td align="right">1770886</td>
+<td align="right">0.4263973</td>
+<td align="right">0.5267046</td>
+<td align="right">0.5793556</td>
+<td align="right">0.4809055</td>
+<td align="right">0.4834522</td>
+</tr>
+<tr class="odd">
+<td align="left">REP</td>
+<td align="right">891063</td>
+<td align="right">908791</td>
+<td align="right">38678</td>
+<td align="right">1807214</td>
+<td align="right">1845892</td>
+<td align="right">0.5572355</td>
+<td align="right">0.4639723</td>
+<td align="right">0.4081809</td>
+<td align="right">0.5064715</td>
+<td align="right">0.5039289</td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption><span id="tab:houseTable">Table 2: </span>Contested House Races</caption>
+<thead>
+<tr class="header">
+<th align="left">choice_party</th>
+<th align="right">party_early</th>
+<th align="right">party_election_day</th>
+<th align="right">party_mail</th>
+<th align="right">party_in_person</th>
+<th align="right">party_total</th>
+<th align="right">party_election_day_share</th>
+<th align="right">party_early_share</th>
+<th align="right">party_mail_share</th>
+<th align="right">party_in_person_share</th>
+<th align="right">party_total_share</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">OTHER</td>
+<td align="right">17905</td>
+<td align="right">26693</td>
+<td align="right">1181</td>
+<td align="right">45042</td>
+<td align="right">46223</td>
+<td align="right">0.0173504</td>
+<td align="right">0.0097901</td>
+<td align="right">0.0128488</td>
+<td align="right">0.0133135</td>
+<td align="right">0.0133012</td>
+</tr>
+<tr class="even">
+<td align="left">REP</td>
+<td align="right">799447</td>
+<td align="right">816364</td>
+<td align="right">35836</td>
+<td align="right">1622155</td>
+<td align="right">1657991</td>
+<td align="right">0.5306354</td>
+<td align="right">0.4371207</td>
+<td align="right">0.3898820</td>
+<td align="right">0.4794757</td>
+<td align="right">0.4771060</td>
+</tr>
+<tr class="odd">
+<td align="left">DEM</td>
+<td align="right">1011541</td>
+<td align="right">695408</td>
+<td align="right">54898</td>
+<td align="right">1715988</td>
+<td align="right">1770886</td>
+<td align="right">0.4520142</td>
+<td align="right">0.5530892</td>
+<td align="right">0.5972692</td>
+<td align="right">0.5072108</td>
+<td align="right">0.5095928</td>
+</tr>
+</tbody>
+</table>
+<div id="number-of-mail-ballots-vs-number-of-total-ballots" class="section level3">
+<h3>Number of Mail Ballots Vs Number of Total Ballots</h3>
+<pre class="r"><code>ggplot(data = house_county_totals, aes(x = total_votes, y = mail)) +
+  geom_point(
+    data = house_county_totals %&gt;%
+      filter(
+        county == &quot;BLADEN&quot;,
+        contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;
+      ),
+    aes(x = total_votes, y = mail), color = &quot;yellow&quot;, size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 300000, by = 50000), labels = scales::comma) +
+  xlab(&quot;Total Votes Cast&quot;) +
+  ylab(&quot;Votes Cast by Mail&quot;) +
+  ggtitle(&quot;Number of Mail in Ballots vs Total Number of Ballots&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/MailRate-1.png" width="1152" /></p>
+<pre class="r"><code>ggplot(data = house_county_totals, aes(x = total_votes, y = mail)) +
+  geom_point(
+    data = house_county_totals %&gt;%
+      filter(
+        county == &quot;BLADEN&quot;,
+        contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;
+      ),
+    aes(x = total_votes, y = mail), color = &quot;yellow&quot;, size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 10000, by = 2000), labels = scales::comma) +
+  xlab(&quot;Total Votes Cast&quot;) +
+  ylab(&quot;Votes Cast by Mail&quot;) +
+  coord_cartesian(xlim = c(0, 10000), ylim = c(0, 1000)) +
+  ggtitle(&quot;Number of Mail in Ballots vs Total Number of Ballots in Small Counties&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/MailRate-2.png" width="1152" /></p>
+<pre class="r"><code>ggplot(data = house_county_totals, aes(x = total_votes, y = mail / total_votes)) +
+  geom_point(
+    data = house_county_totals %&gt;%
+      filter(
+        county == &quot;BLADEN&quot;,
+        contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;
+      ),
+    aes(x = total_votes, y = mail / total_votes), color = &quot;yellow&quot;, size = 5
+  ) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 300000, by = 50000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) +
+  ylab(&quot;Percentage of Votes Cast by Mail&quot;) +
+  xlab(&quot;Total Votes Cast in County&quot;) +
+  ggtitle(&quot;Rate of Mail in Voting vs Total Number of Ballots&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/MailRate-3.png" width="1152" /></p>
+<pre class="r"><code>ggplot(data = house_county_totals, aes(x = total_votes, y = mail / total_votes)) +
+  geom_point(data = house_county_totals %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = total_votes, y = mail / total_votes), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_x_continuous(breaks = seq(0, 10000, by = 2000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::percent) + coord_cartesian(xlim = c(0, 10000)) +
+  ylab(&quot;Percentage of Vote by Mail&quot;) +
+  xlab(&quot;Total Votes Cast in County&quot;) +
+  ggtitle(&quot;Rate of Mail in Voting vs Total Number of Ballots in Small Counties&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/MailRate-4.png" width="1152" /></p>
+</div>
+<div id="vote-by-mail-vs-in-person-voting" class="section level3">
+<h3>Vote by Mail vs In Person Voting</h3>
+<pre class="r"><code>table3 &lt;-
+  house_by_county %&gt;%
+  mutate(in_person = total_votes - mail) %&gt;%
+  gather(
+    key = vote_type,
+    value = vote_count,
+    total_votes,
+    election_day,
+    early,
+    mail,
+    provisional,
+    in_person
+  ) %&gt;%
+  filter(!choice == &quot;county_total&quot;) %&gt;%
+  group_by(contest_name, county, vote_type) %&gt;%
+  mutate(county_total = sum(vote_count)) %&gt;%
+  mutate(share = vote_count / county_total) %&gt;%
+  select(-vote_count, -county_total) %&gt;%
+  filter(choice_party == &quot;DEM&quot; | choice_party == &quot;REP&quot;) %&gt;%
+  spread(vote_type, share) %&gt;%
+  rename_at(vars(-contest_name, -county, -choice, -choice_party), function(x)(paste0(x, &quot;_share&quot;)))
+
+table3 %&lt;&gt;% full_join(house_county_totals) %&gt;%
+  filter(contest_name != &quot;US HOUSE OF REPRESENTATIVES DISTRICT 03&quot;)</code></pre>
+<pre><code>## Warning: Column `county` joining factor and character vector, coercing into
+## character vector</code></pre>
+<pre class="r"><code>ggplot(data = table3, aes(x = in_person_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = in_person_share, y = mail_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) + geom_abline(intercept = 0, slope = 1) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  xlab(&quot;In Person Votes&quot;) +
+  ylab(&quot;Vote by Mail&quot;) +
+  ggtitle(&quot;Partisan Gap Between Vote by Mail and In Person Voting&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/mail-in-vs-in-person-1.png" width="1152" /></p>
+<pre class="r"><code>ggplot(data = table3, aes(x = early_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = early_share, y = mail_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) + scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  xlab(&quot;Early Voting&quot;) +
+  ylab(&quot;Vote by Mail&quot;) +
+  ggtitle(&quot;Partisan Gap Between Vote by Mail and Early Voters&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/mail-in-vs-in-person-2.png" width="1152" /></p>
+<pre class="r"><code>ggplot(data = table3, aes(x = election_day_share, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = election_day_share, y = mail_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) + scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  xlab(&quot;Election Day&quot;) +
+  ylab(&quot;Vote by Mail&quot;) +
+ggtitle(&quot;Partisan Gap Between Vote by Mail and Election Day Voters&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/mail-in-vs-in-person-3.png" width="1152" /></p>
+</div>
+<div id="early-voting-vs-election-day-voting" class="section level3">
+<h3>Early Voting vs Election Day Voting</h3>
+<pre class="r"><code>ggplot(data = table3, aes(x = election_day_share, y = early_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = election_day_share, y = early_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  geom_abline(intercept = 0, slope = 1) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_x_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  ggtitle(&quot;Partisan Gap Between Early Voters and Election Day Voters&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/early-vs-election-day-1.png" width="1152" /></p>
+<pre class="r"><code>DemLM &lt;- lm(
+  early_share ~ election_day_share,
+  data = table3 %&gt;% filter(choice_party == &quot;DEM&quot;)
+)
+RepLM &lt;- lm(
+  early_share ~ election_day_share,
+  data = table3 %&gt;% filter(choice_party == &quot;REP&quot;)
+)
+summary(DemLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Democrat&quot;)
+summary(RepLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Republican&quot;)</code></pre>
+<table>
+<caption><span id="tab:early-vs-election-day">Table 3: </span>Democrat</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">0.0605633</td>
+<td align="right">0.0129121</td>
+<td align="right">4.69042</td>
+<td align="right">9.2e-06</td>
+</tr>
+<tr class="even">
+<td>election_day_share</td>
+<td align="right">1.0839819</td>
+<td align="right">0.0310291</td>
+<td align="right">34.93441</td>
+<td align="right">0.0e+00</td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption><span id="tab:early-vs-election-day">Table 3: </span>Republican</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">-0.135792</td>
+<td align="right">0.0189912</td>
+<td align="right">-7.150257</td>
+<td align="right">0</td>
+</tr>
+<tr class="even">
+<td>election_day_share</td>
+<td align="right">1.080416</td>
+<td align="right">0.0309343</td>
+<td align="right">34.926157</td>
+<td align="right">0</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="partisan-gap-between-election-day-and-early-voting" class="section level3">
+<h3>Partisan Gap Between Election Day and Early Voting</h3>
+<pre class="r"><code>ggplot(data = table3, aes(x = election_day / total_votes, y = early_share - election_day_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = election_day / total_votes, y = early_share - election_day_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) + geom_hline(yintercept = 0) +
+  scale_y_continuous(labels = scales::percent_format()) + scale_x_continuous(labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  labs(x = &quot;Percentage of Total Votes Cast on Election Day&quot;, y = &quot;Share of Early Ballots vs Election Day Ballots&quot;) +
+  ggtitle(&quot;Gap between Early and Election Day Voting vs Rate of Election Day Voting&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/early-vs-election-day-rate-1.png" width="1152" /></p>
+<pre class="r"><code>DemLM &lt;- lm(
+  I(early_share - election_day_share) ~ I(election_day / total_votes),
+  data = table3 %&gt;% filter(choice_party == &quot;DEM&quot;)
+)
+RepLM &lt;- lm(I(early_share - election_day_share) ~ I(election_day / total_votes),
+  data = table3 %&gt;% filter(choice_party == &quot;REP&quot;)
+)
+summary(DemLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Democrat&quot;)
+summary(RepLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Republican&quot;)</code></pre>
+<table>
+<caption><span id="tab:early-vs-election-day-rate">Table 4: </span>Democrat</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">0.0954804</td>
+<td align="right">0.0250915</td>
+<td align="right">3.8052833</td>
+<td align="right">0.0002520</td>
+</tr>
+<tr class="even">
+<td>I(election_day/total_votes)</td>
+<td align="right">-0.0047870</td>
+<td align="right">0.0541114</td>
+<td align="right">-0.0884662</td>
+<td align="right">0.9296944</td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption><span id="tab:early-vs-election-day-rate">Table 4: </span>Republican</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">-0.0789622</td>
+<td align="right">0.0249926</td>
+<td align="right">-3.1594274</td>
+<td align="right">0.0021267</td>
+</tr>
+<tr class="even">
+<td>I(election_day/total_votes)</td>
+<td align="right">-0.0194898</td>
+<td align="right">0.0538980</td>
+<td align="right">-0.3616052</td>
+<td align="right">0.7184586</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="any-relationship-between-vote-by-mail-prevalence-and-partisan-lean" class="section level3">
+<h3>Any Relationship Between Vote by Mail Prevalence and Partisan Lean</h3>
+<pre class="r"><code>ggplot(data = table3, aes(x = mail / total_votes, y = mail_share, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = mail / total_votes, y = mail_share), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_y_continuous(limits = c(0, 1), labels = scales::percent_format()) +
+  geom_hline(yintercept = .5) +
+  scale_x_continuous(labels = scales::percent_format()) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  labs(x = &quot;Percentage of Total Votes Cast by Mail&quot;, y = &quot;Share of Mail In Ballots&quot;) +
+  ggtitle(&quot;Percentage of Mail in Ballots Won vs Rate of Voting by Mail&quot;)</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/mail-in-rate-1.png" width="1152" /></p>
+<pre class="r"><code>
+table3 &lt;- table3 %&gt;%
+  mutate(mail_rate = mail / total_votes, mail_gap = mail_share - in_person_share)
+
+graph &lt;-
+  ggplot(data = table3, aes(x = mail_rate, y = mail_gap, color = choice_party)) +
+  geom_point(data = table3 %&gt;% filter(county == &quot;BLADEN&quot;, contest_name == &quot;US HOUSE OF REPRESENTATIVES DISTRICT 09&quot;), aes(x = mail_rate, y = mail_gap), color = &quot;yellow&quot;, size = 5) +
+  geom_point() +
+  geom_smooth(method = &quot;lm&quot;, formula = y ~ x) +
+  scale_y_continuous(labels = scales::percent_format()) +
+  scale_x_continuous(labels = scales::percent_format()) +
+  geom_hline(yintercept = 0) +
+  scale_color_manual(values = setNames(c(blue, red), c(&quot;DEM&quot;, &quot;REP&quot;))) +
+  xlab(&quot;Percentage of Total Votes Cast by Mail&quot;) +
+  ylab(&quot;Difference Between Share of Mail In and In Person Ballots&quot;) +
+  ggtitle(&quot;Rate of Voting by Mail vs Mail/In Person Partisan Gap&quot;)
+
+DemLM &lt;- lm(mail_gap ~ mail_rate, data = table3 %&gt;% filter(choice_party == &quot;DEM&quot;))
+RepLM &lt;- lm(mail_gap ~ mail_rate, data = table3 %&gt;% filter(choice_party == &quot;REP&quot;))
+summary(DemLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Democrat&quot;)
+summary(RepLM) %&gt;% coefficients() %&gt;% kable(caption = &quot;Republican&quot;)
+graph</code></pre>
+<p><img src="/post/2019-04-17-election-fraud-in-north-carolina_files/figure-html/mail-in-rate-2.png" width="1152" /></p>
+<table>
+<caption><span id="tab:mail-in-rate">Table 5: </span>Democrat</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">0.0868243</td>
+<td align="right">0.0187913</td>
+<td align="right">4.6204549</td>
+<td align="right">0.0000122</td>
+</tr>
+<tr class="even">
+<td>mail_rate</td>
+<td align="right">0.4482758</td>
+<td align="right">0.7523352</td>
+<td align="right">0.5958458</td>
+<td align="right">0.5527102</td>
+</tr>
+</tbody>
+</table>
+<table>
+<caption><span id="tab:mail-in-rate">Table 5: </span>Republican</caption>
+<thead>
+<tr class="header">
+<th></th>
+<th align="right">Estimate</th>
+<th align="right">Std. Error</th>
+<th align="right">t value</th>
+<th align="right">Pr(&gt;|t|)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>(Intercept)</td>
+<td align="right">-0.0870912</td>
+<td align="right">0.0186261</td>
+<td align="right">-4.675754</td>
+<td align="right">0.0000098</td>
+</tr>
+<tr class="even">
+<td>mail_rate</td>
+<td align="right">-0.3469602</td>
+<td align="right">0.7457229</td>
+<td align="right">-0.465267</td>
+<td align="right">0.6428164</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>

@@ -1,0 +1,2123 @@
+---
+title: CO2 Emissions
+author: ~
+date: '2019-04-17'
+slug: co2-emissions
+categories: ["R"]
+tags: []
+type: post
+description: description
+keywords:
+  - key
+  - words
+topics:
+  - topic 1
+---
+
+<script src="/rmarkdown-libs/htmlwidgets/htmlwidgets.js"></script>
+<script src="/rmarkdown-libs/pymjs/pym.v1.js"></script>
+<script src="/rmarkdown-libs/widgetframe-binding/widgetframe.js"></script>
+
+
+<div id="carbon-dioxide-emissions-from-the-world-banks-world-development-index" class="section level1">
+<h1>Carbon Dioxide Emissions from the World Bank’s World Development Index</h1>
+<pre class="r"><code>library(tidyverse)</code></pre>
+<div id="preparing-the-data" class="section level2">
+<h2>Preparing the data</h2>
+<p>First we need to import the data and clean up any issues</p>
+<div id="read-in-the-file" class="section level3">
+<h3>Read in the file</h3>
+<pre class="r"><code>df &lt;- read_csv(&quot;C:/datasets/co2_global_emissions.csv&quot;)</code></pre>
+</div>
+<div id="take-a-look-at-the-data" class="section level3">
+<h3>Take a look at the data</h3>
+<p>I use the str function to inspect the structure of the dataframe.
+There are two columns for the inidicator which in this case are all the same and can be removed. It also makes sense to convert the table to a long format instead of having each year represented by its own column.</p>
+<pre class="r"><code>str(df)</code></pre>
+<pre><code>## Classes &#39;spec_tbl_df&#39;, &#39;tbl_df&#39;, &#39;tbl&#39; and &#39;data.frame&#39;: 264 obs. of  63 variables:
+##  $ Country Name  : chr  &quot;Aruba&quot; &quot;Afghanistan&quot; &quot;Angola&quot; &quot;Albania&quot; ...
+##  $ Country Code  : chr  &quot;ABW&quot; &quot;AFG&quot; &quot;AGO&quot; &quot;ALB&quot; ...
+##  $ Indicator Name: chr  &quot;CO2 emissions (metric tons per capita)&quot; &quot;CO2 emissions (metric tons per capita)&quot; &quot;CO2 emissions (metric tons per capita)&quot; &quot;CO2 emissions (metric tons per capita)&quot; ...
+##  $ Indicator Code: chr  &quot;EN.ATM.CO2E.PC&quot; &quot;EN.ATM.CO2E.PC&quot; &quot;EN.ATM.CO2E.PC&quot; &quot;EN.ATM.CO2E.PC&quot; ...
+##  $ 1960          : num  NA 0.0461 0.0975 1.2582 NA ...
+##  $ 1961          : num  NA 0.0536 0.079 1.3742 NA ...
+##  $ 1962          : num  NA 0.0738 0.2013 1.44 NA ...
+##  $ 1963          : num  NA 0.0742 0.1925 1.1817 NA ...
+##  $ 1964          : num  NA 0.0863 0.201 1.1117 NA ...
+##  $ 1965          : num  NA 0.101 0.192 1.166 NA ...
+##  $ 1966          : num  NA 0.108 0.246 1.333 NA ...
+##  $ 1967          : num  NA 0.124 0.155 1.364 NA ...
+##  $ 1968          : num  NA 0.115 0.256 1.52 NA ...
+##  $ 1969          : num  NA 0.0868 0.4196 1.559 NA ...
+##  $ 1970          : num  NA 0.15 0.529 1.753 NA ...
+##  $ 1971          : num  NA 0.166 0.492 1.989 NA ...
+##  $ 1972          : num  NA 0.131 0.635 2.516 NA ...
+##  $ 1973          : num  NA 0.136 0.671 2.304 NA ...
+##  $ 1974          : num  NA 0.156 0.652 1.849 NA ...
+##  $ 1975          : num  NA 0.169 0.575 1.911 NA ...
+##  $ 1976          : num  NA 0.155 0.416 2.014 NA ...
+##  $ 1977          : num  NA 0.183 0.435 2.276 NA ...
+##  $ 1978          : num  NA 0.163 0.646 2.531 NA ...
+##  $ 1979          : num  NA 0.168 0.637 2.898 NA ...
+##  $ 1980          : num  NA 0.133 0.599 1.935 NA ...
+##  $ 1981          : num  NA 0.152 0.571 2.693 NA ...
+##  $ 1982          : num  NA 0.165 0.485 2.625 NA ...
+##  $ 1983          : num  NA 0.204 0.515 2.683 NA ...
+##  $ 1984          : num  NA 0.235 0.487 2.694 NA ...
+##  $ 1985          : num  NA 0.298 0.443 2.658 NA ...
+##  $ 1986          : num  2.868 0.271 0.427 2.665 NA ...
+##  $ 1987          : num  7.235 0.272 0.518 2.414 NA ...
+##  $ 1988          : num  10.026 0.248 0.446 2.332 NA ...
+##  $ 1989          : num  10.635 0.236 0.424 2.783 NA ...
+##  $ 1990          : num  26.375 0.213 0.42 1.678 7.467 ...
+##  $ 1991          : num  26.046 0.188 0.405 1.312 7.182 ...
+##  $ 1992          : num  21.4426 0.0997 0.4007 0.7747 6.9121 ...
+##  $ 1993          : num  22.0008 0.0892 0.4309 0.7238 6.7361 ...
+##  $ 1994          : num  21.036 0.08 0.281 0.6 6.494 ...
+##  $ 1995          : num  20.7719 0.0727 0.7692 0.6545 6.6621 ...
+##  $ 1996          : num  20.318 0.066 0.712 0.637 7.065 ...
+##  $ 1997          : num  20.4268 0.0596 0.4892 0.4904 7.2397 ...
+##  $ 1998          : num  20.5877 0.0552 0.4714 0.5603 7.6608 ...
+##  $ 1999          : num  20.3116 0.0423 0.5741 0.9602 7.9755 ...
+##  $ 2000          : num  26.1949 0.0385 0.5804 0.9782 8.0193 ...
+##  $ 2001          : num  25.934 0.039 0.573 1.053 7.787 ...
+##  $ 2002          : num  25.6712 0.0487 0.7208 1.2295 7.5906 ...
+##  $ 2003          : num  26.4205 0.0518 0.498 1.4127 7.3158 ...
+##  $ 2004          : num  26.5173 0.0394 0.9962 1.3762 7.3586 ...
+##  $ 2005          : num  27.2007 0.0529 0.9797 1.4125 7.2999 ...
+##  $ 2006          : num  26.9483 0.0637 1.0989 1.3026 6.7462 ...
+##  $ 2007          : num  27.8956 0.0854 1.1978 1.3223 6.5195 ...
+##  $ 2008          : num  26.231 0.154 1.182 1.484 6.428 ...
+##  $ 2009          : num  25.916 0.242 1.232 1.496 6.122 ...
+##  $ 2010          : num  24.671 0.294 1.243 1.579 6.123 ...
+##  $ 2011          : num  24.506 0.412 1.253 1.804 5.867 ...
+##  $ 2012          : num  13.16 0.35 1.33 1.69 5.92 ...
+##  $ 2013          : num  8.351 0.316 1.255 1.749 5.901 ...
+##  $ 2014          : num  8.408 0.299 1.291 1.979 5.832 ...
+##  $ 2015          : logi  NA NA NA NA NA NA ...
+##  $ 2016          : logi  NA NA NA NA NA NA ...
+##  $ 2017          : logi  NA NA NA NA NA NA ...
+##  $ 2018          : logi  NA NA NA NA NA NA ...
+##  - attr(*, &quot;spec&quot;)=
+##   .. cols(
+##   ..   `Country Name` = col_character(),
+##   ..   `Country Code` = col_character(),
+##   ..   `Indicator Name` = col_character(),
+##   ..   `Indicator Code` = col_character(),
+##   ..   `1960` = col_double(),
+##   ..   `1961` = col_double(),
+##   ..   `1962` = col_double(),
+##   ..   `1963` = col_double(),
+##   ..   `1964` = col_double(),
+##   ..   `1965` = col_double(),
+##   ..   `1966` = col_double(),
+##   ..   `1967` = col_double(),
+##   ..   `1968` = col_double(),
+##   ..   `1969` = col_double(),
+##   ..   `1970` = col_double(),
+##   ..   `1971` = col_double(),
+##   ..   `1972` = col_double(),
+##   ..   `1973` = col_double(),
+##   ..   `1974` = col_double(),
+##   ..   `1975` = col_double(),
+##   ..   `1976` = col_double(),
+##   ..   `1977` = col_double(),
+##   ..   `1978` = col_double(),
+##   ..   `1979` = col_double(),
+##   ..   `1980` = col_double(),
+##   ..   `1981` = col_double(),
+##   ..   `1982` = col_double(),
+##   ..   `1983` = col_double(),
+##   ..   `1984` = col_double(),
+##   ..   `1985` = col_double(),
+##   ..   `1986` = col_double(),
+##   ..   `1987` = col_double(),
+##   ..   `1988` = col_double(),
+##   ..   `1989` = col_double(),
+##   ..   `1990` = col_double(),
+##   ..   `1991` = col_double(),
+##   ..   `1992` = col_double(),
+##   ..   `1993` = col_double(),
+##   ..   `1994` = col_double(),
+##   ..   `1995` = col_double(),
+##   ..   `1996` = col_double(),
+##   ..   `1997` = col_double(),
+##   ..   `1998` = col_double(),
+##   ..   `1999` = col_double(),
+##   ..   `2000` = col_double(),
+##   ..   `2001` = col_double(),
+##   ..   `2002` = col_double(),
+##   ..   `2003` = col_double(),
+##   ..   `2004` = col_double(),
+##   ..   `2005` = col_double(),
+##   ..   `2006` = col_double(),
+##   ..   `2007` = col_double(),
+##   ..   `2008` = col_double(),
+##   ..   `2009` = col_double(),
+##   ..   `2010` = col_double(),
+##   ..   `2011` = col_double(),
+##   ..   `2012` = col_double(),
+##   ..   `2013` = col_double(),
+##   ..   `2014` = col_double(),
+##   ..   `2015` = col_logical(),
+##   ..   `2016` = col_logical(),
+##   ..   `2017` = col_logical(),
+##   ..   `2018` = col_logical()
+##   .. )</code></pre>
+</div>
+<div id="fix-the-column-names" class="section level3">
+<h3>Fix the column names</h3>
+<p>Here I convert the column names to camel case</p>
+<pre class="r"><code>names(df) &lt;- names(df) %&gt;% tolower() %&gt;% str_replace(&quot; &quot;, &quot;_&quot;)</code></pre>
+</div>
+<div id="lets-take-another-look" class="section level3">
+<h3>Let’s take another look</h3>
+<p>The skimr package contains tools for summarising various data structures in R.</p>
+<pre class="r"><code>df %&gt;% skimr::skim_to_wide() %&gt;% skimr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">variable</th>
+<th align="center">missing</th>
+<th align="center">complete</th>
+<th align="center">n</th>
+<th align="center">min</th>
+<th align="center">max</th>
+<th align="center">empty</th>
+<th align="center">n_unique</th>
+<th align="center">mean</th>
+<th align="center">count</th>
+<th align="center">sd</th>
+<th align="center">p0</th>
+<th align="center">p25</th>
+<th align="center">p50</th>
+<th align="center">p75</th>
+<th align="center">p100</th>
+<th align="center">hist</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">character</td>
+<td align="center">country_code</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">264</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">character</td>
+<td align="center">country_name</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">264</td>
+<td align="center">4</td>
+<td align="center">52</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="odd">
+<td align="center">character</td>
+<td align="center">indicator_code</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">264</td>
+<td align="center">14</td>
+<td align="center">14</td>
+<td align="center">0</td>
+<td align="center">1</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">character</td>
+<td align="center">indicator_name</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">264</td>
+<td align="center">38</td>
+<td align="center">38</td>
+<td align="center">0</td>
+<td align="center">1</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="odd">
+<td align="center">logical</td>
+<td align="center">2015</td>
+<td align="center">264</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NaN</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">logical</td>
+<td align="center">2016</td>
+<td align="center">264</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NaN</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="odd">
+<td align="center">logical</td>
+<td align="center">2017</td>
+<td align="center">264</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NaN</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">logical</td>
+<td align="center">2018</td>
+<td align="center">264</td>
+<td align="center">0</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NaN</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1960</td>
+<td align="center">72</td>
+<td align="center">192</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">2.04</td>
+<td align="center">NA</td>
+<td align="center">4.19</td>
+<td align="center">0.008</td>
+<td align="center">0.18</td>
+<td align="center">0.62</td>
+<td align="center">1.7</td>
+<td align="center">36.69</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1961</td>
+<td align="center">71</td>
+<td align="center">193</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">2.16</td>
+<td align="center">NA</td>
+<td align="center">4.38</td>
+<td align="center">0.0079</td>
+<td align="center">0.18</td>
+<td align="center">0.65</td>
+<td align="center">1.75</td>
+<td align="center">36.58</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1962</td>
+<td align="center">69</td>
+<td align="center">195</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">2.25</td>
+<td align="center">NA</td>
+<td align="center">4.72</td>
+<td align="center">0.0085</td>
+<td align="center">0.2</td>
+<td align="center">0.65</td>
+<td align="center">1.94</td>
+<td align="center">42.24</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1963</td>
+<td align="center">68</td>
+<td align="center">196</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">2.76</td>
+<td align="center">NA</td>
+<td align="center">8.46</td>
+<td align="center">0.0094</td>
+<td align="center">0.2</td>
+<td align="center">0.65</td>
+<td align="center">1.72</td>
+<td align="center">99.46</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1964</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">2.91</td>
+<td align="center">NA</td>
+<td align="center">8.49</td>
+<td align="center">0.012</td>
+<td align="center">0.22</td>
+<td align="center">0.77</td>
+<td align="center">2.02</td>
+<td align="center">92.86</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1965</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.03</td>
+<td align="center">NA</td>
+<td align="center">8.7</td>
+<td align="center">0.012</td>
+<td align="center">0.23</td>
+<td align="center">0.7</td>
+<td align="center">2.19</td>
+<td align="center">85.46</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1966</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.04</td>
+<td align="center">NA</td>
+<td align="center">8.05</td>
+<td align="center">0.013</td>
+<td align="center">0.25</td>
+<td align="center">0.75</td>
+<td align="center">2.46</td>
+<td align="center">78.63</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1967</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.11</td>
+<td align="center">NA</td>
+<td align="center">7.26</td>
+<td align="center">0.012</td>
+<td align="center">0.25</td>
+<td align="center">0.8</td>
+<td align="center">2.92</td>
+<td align="center">77.51</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1968</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.31</td>
+<td align="center">NA</td>
+<td align="center">7.18</td>
+<td align="center">-0.02</td>
+<td align="center">0.27</td>
+<td align="center">0.99</td>
+<td align="center">3.26</td>
+<td align="center">75.98</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1969</td>
+<td align="center">61</td>
+<td align="center">203</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.92</td>
+<td align="center">NA</td>
+<td align="center">9.9</td>
+<td align="center">0.016</td>
+<td align="center">0.32</td>
+<td align="center">1.06</td>
+<td align="center">3.6</td>
+<td align="center">100.7</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1970</td>
+<td align="center">59</td>
+<td align="center">205</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.2</td>
+<td align="center">NA</td>
+<td align="center">9.25</td>
+<td align="center">0.012</td>
+<td align="center">0.35</td>
+<td align="center">1</td>
+<td align="center">4.01</td>
+<td align="center">69.11</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1971</td>
+<td align="center">58</td>
+<td align="center">206</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.42</td>
+<td align="center">NA</td>
+<td align="center">9.87</td>
+<td align="center">0.012</td>
+<td align="center">0.34</td>
+<td align="center">1.1</td>
+<td align="center">4.5</td>
+<td align="center">76.64</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1972</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.49</td>
+<td align="center">NA</td>
+<td align="center">10.13</td>
+<td align="center">0.012</td>
+<td align="center">0.35</td>
+<td align="center">1.11</td>
+<td align="center">4.52</td>
+<td align="center">82.62</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1973</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.81</td>
+<td align="center">NA</td>
+<td align="center">10.75</td>
+<td align="center">0.011</td>
+<td align="center">0.37</td>
+<td align="center">1.14</td>
+<td align="center">5.12</td>
+<td align="center">87.65</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1974</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.5</td>
+<td align="center">NA</td>
+<td align="center">9.18</td>
+<td align="center">0.0097</td>
+<td align="center">0.37</td>
+<td align="center">1.23</td>
+<td align="center">4.64</td>
+<td align="center">68.23</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1975</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.37</td>
+<td align="center">NA</td>
+<td align="center">8.45</td>
+<td align="center">0.0097</td>
+<td align="center">0.38</td>
+<td align="center">1.29</td>
+<td align="center">4.85</td>
+<td align="center">66.64</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1976</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.36</td>
+<td align="center">NA</td>
+<td align="center">8.05</td>
+<td align="center">0.0099</td>
+<td align="center">0.36</td>
+<td align="center">1.36</td>
+<td align="center">5.17</td>
+<td align="center">61.29</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1977</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.49</td>
+<td align="center">NA</td>
+<td align="center">7.99</td>
+<td align="center">0.01</td>
+<td align="center">0.39</td>
+<td align="center">1.44</td>
+<td align="center">5.29</td>
+<td align="center">54.41</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1978</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.51</td>
+<td align="center">NA</td>
+<td align="center">8.03</td>
+<td align="center">0.0074</td>
+<td align="center">0.4</td>
+<td align="center">1.52</td>
+<td align="center">5.75</td>
+<td align="center">54.83</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1979</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.56</td>
+<td align="center">NA</td>
+<td align="center">7.95</td>
+<td align="center">0.0043</td>
+<td align="center">0.44</td>
+<td align="center">1.58</td>
+<td align="center">5.49</td>
+<td align="center">69.94</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1980</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.46</td>
+<td align="center">NA</td>
+<td align="center">7.41</td>
+<td align="center">0.036</td>
+<td align="center">0.45</td>
+<td align="center">1.53</td>
+<td align="center">5.49</td>
+<td align="center">58.53</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1981</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.99</td>
+<td align="center">NA</td>
+<td align="center">6.19</td>
+<td align="center">0.03</td>
+<td align="center">0.47</td>
+<td align="center">1.52</td>
+<td align="center">5.31</td>
+<td align="center">51.83</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1982</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.87</td>
+<td align="center">NA</td>
+<td align="center">5.78</td>
+<td align="center">0.028</td>
+<td align="center">0.45</td>
+<td align="center">1.48</td>
+<td align="center">5.38</td>
+<td align="center">44.54</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1983</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.73</td>
+<td align="center">NA</td>
+<td align="center">5.29</td>
+<td align="center">0.031</td>
+<td align="center">0.45</td>
+<td align="center">1.37</td>
+<td align="center">5.41</td>
+<td align="center">36.41</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1984</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.82</td>
+<td align="center">NA</td>
+<td align="center">5.56</td>
+<td align="center">0.041</td>
+<td align="center">0.48</td>
+<td align="center">1.45</td>
+<td align="center">5.26</td>
+<td align="center">36.12</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1985</td>
+<td align="center">56</td>
+<td align="center">208</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.92</td>
+<td align="center">NA</td>
+<td align="center">5.6</td>
+<td align="center">0.035</td>
+<td align="center">0.47</td>
+<td align="center">1.54</td>
+<td align="center">5.56</td>
+<td align="center">35.89</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1986</td>
+<td align="center">55</td>
+<td align="center">209</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.91</td>
+<td align="center">NA</td>
+<td align="center">5.53</td>
+<td align="center">0.036</td>
+<td align="center">0.44</td>
+<td align="center">1.55</td>
+<td align="center">4.98</td>
+<td align="center">33.41</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1987</td>
+<td align="center">55</td>
+<td align="center">209</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">3.94</td>
+<td align="center">NA</td>
+<td align="center">5.33</td>
+<td align="center">0.037</td>
+<td align="center">0.48</td>
+<td align="center">1.64</td>
+<td align="center">5.39</td>
+<td align="center">30.56</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1988</td>
+<td align="center">55</td>
+<td align="center">209</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.08</td>
+<td align="center">NA</td>
+<td align="center">5.48</td>
+<td align="center">0.012</td>
+<td align="center">0.51</td>
+<td align="center">1.76</td>
+<td align="center">5.8</td>
+<td align="center">29.21</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1989</td>
+<td align="center">55</td>
+<td align="center">209</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.21</td>
+<td align="center">NA</td>
+<td align="center">5.73</td>
+<td align="center">0.018</td>
+<td align="center">0.5</td>
+<td align="center">1.64</td>
+<td align="center">5.84</td>
+<td align="center">31.03</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1990</td>
+<td align="center">49</td>
+<td align="center">215</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.08</td>
+<td align="center">NA</td>
+<td align="center">5.63</td>
+<td align="center">0.024</td>
+<td align="center">0.46</td>
+<td align="center">1.67</td>
+<td align="center">5.91</td>
+<td align="center">27.96</td>
+<td align="center">▇▂▂▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1991</td>
+<td align="center">47</td>
+<td align="center">217</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.12</td>
+<td align="center">NA</td>
+<td align="center">5.68</td>
+<td align="center">0.011</td>
+<td align="center">0.45</td>
+<td align="center">1.86</td>
+<td align="center">5.99</td>
+<td align="center">36.32</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1992</td>
+<td align="center">23</td>
+<td align="center">241</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.48</td>
+<td align="center">NA</td>
+<td align="center">6.02</td>
+<td align="center">0.013</td>
+<td align="center">0.57</td>
+<td align="center">2.28</td>
+<td align="center">6.47</td>
+<td align="center">54.09</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1993</td>
+<td align="center">23</td>
+<td align="center">241</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.5</td>
+<td align="center">NA</td>
+<td align="center">6.34</td>
+<td align="center">0.014</td>
+<td align="center">0.53</td>
+<td align="center">2.24</td>
+<td align="center">6.66</td>
+<td align="center">61.25</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1994</td>
+<td align="center">22</td>
+<td align="center">242</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.42</td>
+<td align="center">NA</td>
+<td align="center">6.24</td>
+<td align="center">0.015</td>
+<td align="center">0.57</td>
+<td align="center">2.19</td>
+<td align="center">6.45</td>
+<td align="center">59.6</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1995</td>
+<td align="center">21</td>
+<td align="center">243</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.47</td>
+<td align="center">NA</td>
+<td align="center">6.38</td>
+<td align="center">0.016</td>
+<td align="center">0.58</td>
+<td align="center">2.32</td>
+<td align="center">6.48</td>
+<td align="center">61.91</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1996</td>
+<td align="center">21</td>
+<td align="center">243</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.49</td>
+<td align="center">NA</td>
+<td align="center">6.25</td>
+<td align="center">0.017</td>
+<td align="center">0.62</td>
+<td align="center">2.4</td>
+<td align="center">6.76</td>
+<td align="center">61.84</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1997</td>
+<td align="center">20</td>
+<td align="center">244</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.49</td>
+<td align="center">NA</td>
+<td align="center">6.56</td>
+<td align="center">0.019</td>
+<td align="center">0.68</td>
+<td align="center">2.27</td>
+<td align="center">6.58</td>
+<td align="center">70.14</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">1998</td>
+<td align="center">19</td>
+<td align="center">245</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.48</td>
+<td align="center">NA</td>
+<td align="center">6.18</td>
+<td align="center">0.019</td>
+<td align="center">0.7</td>
+<td align="center">2.25</td>
+<td align="center">6.55</td>
+<td align="center">58.87</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">1999</td>
+<td align="center">19</td>
+<td align="center">245</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.45</td>
+<td align="center">NA</td>
+<td align="center">5.96</td>
+<td align="center">0.02</td>
+<td align="center">0.74</td>
+<td align="center">2.26</td>
+<td align="center">6.69</td>
+<td align="center">55.16</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2000</td>
+<td align="center">19</td>
+<td align="center">245</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.58</td>
+<td align="center">NA</td>
+<td align="center">6.37</td>
+<td align="center">0.017</td>
+<td align="center">0.74</td>
+<td align="center">2.34</td>
+<td align="center">6.61</td>
+<td align="center">58.64</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2001</td>
+<td align="center">19</td>
+<td align="center">245</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.63</td>
+<td align="center">NA</td>
+<td align="center">6.52</td>
+<td align="center">0.017</td>
+<td align="center">0.76</td>
+<td align="center">2.44</td>
+<td align="center">6.92</td>
+<td align="center">67.11</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2002</td>
+<td align="center">18</td>
+<td align="center">246</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.6</td>
+<td align="center">NA</td>
+<td align="center">6.31</td>
+<td align="center">0.019</td>
+<td align="center">0.76</td>
+<td align="center">2.5</td>
+<td align="center">6.95</td>
+<td align="center">63.35</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2003</td>
+<td align="center">18</td>
+<td align="center">246</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.73</td>
+<td align="center">NA</td>
+<td align="center">6.36</td>
+<td align="center">0.019</td>
+<td align="center">0.8</td>
+<td align="center">2.63</td>
+<td align="center">7.24</td>
+<td align="center">60.3</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2004</td>
+<td align="center">18</td>
+<td align="center">246</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.78</td>
+<td align="center">NA</td>
+<td align="center">6.29</td>
+<td align="center">0.023</td>
+<td align="center">0.84</td>
+<td align="center">2.66</td>
+<td align="center">7.13</td>
+<td align="center">56.59</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2005</td>
+<td align="center">17</td>
+<td align="center">247</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.82</td>
+<td align="center">NA</td>
+<td align="center">6.41</td>
+<td align="center">0.021</td>
+<td align="center">0.86</td>
+<td align="center">2.77</td>
+<td align="center">7.03</td>
+<td align="center">58.92</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2006</td>
+<td align="center">16</td>
+<td align="center">248</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.9</td>
+<td align="center">NA</td>
+<td align="center">6.56</td>
+<td align="center">0.024</td>
+<td align="center">0.8</td>
+<td align="center">2.92</td>
+<td align="center">7.04</td>
+<td align="center">62.82</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2007</td>
+<td align="center">15</td>
+<td align="center">249</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.93</td>
+<td align="center">NA</td>
+<td align="center">6.39</td>
+<td align="center">0.024</td>
+<td align="center">0.89</td>
+<td align="center">2.89</td>
+<td align="center">6.93</td>
+<td align="center">53.19</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2008</td>
+<td align="center">15</td>
+<td align="center">249</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.94</td>
+<td align="center">NA</td>
+<td align="center">6.18</td>
+<td align="center">0.023</td>
+<td align="center">0.82</td>
+<td align="center">3.03</td>
+<td align="center">7.01</td>
+<td align="center">46.67</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2009</td>
+<td align="center">15</td>
+<td align="center">249</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.72</td>
+<td align="center">NA</td>
+<td align="center">5.86</td>
+<td align="center">0.022</td>
+<td align="center">0.83</td>
+<td align="center">2.95</td>
+<td align="center">6.32</td>
+<td align="center">43.51</td>
+<td align="center">▇▃▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2010</td>
+<td align="center">15</td>
+<td align="center">249</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.84</td>
+<td align="center">NA</td>
+<td align="center">5.89</td>
+<td align="center">0.024</td>
+<td align="center">0.82</td>
+<td align="center">2.93</td>
+<td align="center">6.64</td>
+<td align="center">40.74</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2011</td>
+<td align="center">15</td>
+<td align="center">249</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.81</td>
+<td align="center">NA</td>
+<td align="center">5.82</td>
+<td align="center">0.027</td>
+<td align="center">0.84</td>
+<td align="center">2.93</td>
+<td align="center">6.72</td>
+<td align="center">41.21</td>
+<td align="center">▇▃▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2012</td>
+<td align="center">13</td>
+<td align="center">251</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.95</td>
+<td align="center">NA</td>
+<td align="center">6.19</td>
+<td align="center">0.03</td>
+<td align="center">0.83</td>
+<td align="center">3.03</td>
+<td align="center">6.66</td>
+<td align="center">44.62</td>
+<td align="center">▇▃▁▁▁▁▁▁</td>
+</tr>
+<tr class="even">
+<td align="center">numeric</td>
+<td align="center">2013</td>
+<td align="center">13</td>
+<td align="center">251</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.86</td>
+<td align="center">NA</td>
+<td align="center">5.86</td>
+<td align="center">0.03</td>
+<td align="center">0.85</td>
+<td align="center">3.01</td>
+<td align="center">6.71</td>
+<td align="center">37.78</td>
+<td align="center">▇▃▁▁▁▁▁▁</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">2014</td>
+<td align="center">14</td>
+<td align="center">250</td>
+<td align="center">264</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.87</td>
+<td align="center">NA</td>
+<td align="center">6.1</td>
+<td align="center">0.044</td>
+<td align="center">0.88</td>
+<td align="center">3.15</td>
+<td align="center">6.37</td>
+<td align="center">45.42</td>
+<td align="center">▇▂▁▁▁▁▁▁</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="is-anything-missing" class="section level3">
+<h3>Is anything missing</h3>
+<pre class="r"><code>library(mi)
+df %&gt;% as.data.frame() %&gt;% missing_data.frame() %&gt;% image()</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-6-.gif" width="1152" /></p>
+</div>
+<div id="those-arent-countries" class="section level3">
+<h3>Those aren’t Countries!</h3>
+<p>There are quite a few regional and economic groups included as countries. I decided to remove these and keep just the countries and the value for the world as a whole. The datatable made it easier to browse through the data and find what I wanted to remove.</p>
+<pre class="r"><code># Lookup table mapping country codes to names
+country_names &lt;- df %&gt;%
+  pull(country_name) %&gt;%
+  set_names(df %&gt;% pull(country_code)) %&gt;%
+  sort()
+
+df %&gt;%
+  select(country_code, country_name) %&gt;%
+  unique() %&gt;%
+  DT::datatable() %&gt;%
+  widgetframe::frameWidget()</code></pre>
+<div id="htmlwidget-1" style="width:100%;height:576px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-1">{"x":{"url":"/post/2019-04-17-co2-emissions_files/figure-html//widgets/widget_unnamed-chunk-7.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<pre class="r"><code>non_countries &lt;- c(
+  &quot;ARB&quot;, &quot;CEB&quot;, &quot;CSS&quot;, &quot;EAP&quot;, &quot;EAR&quot;, &quot;EAS&quot;, &quot;ECA&quot;, &quot;ECS&quot;, &quot;EMU&quot;,
+  &quot;EUU&quot;, &quot;FCS&quot;, &quot;HIC&quot;, &quot;HPC&quot;, &quot;IBD&quot;, &quot;IBT&quot;, &quot;IDA&quot;, &quot;IDB&quot;, &quot;IDX&quot;, &quot;INX&quot;,
+  &quot;LAC&quot;, &quot;LCN&quot;, &quot;LDC&quot;, &quot;LIC&quot;, &quot;LMC&quot;, &quot;LMY&quot;, &quot;LTE&quot;, &quot;MEA&quot;, &quot;MIC&quot;, &quot;MNA&quot;,
+  &quot;NAC&quot;, &quot;OED&quot;, &quot;OSS&quot;, &quot;PRE&quot;, &quot;PSS&quot;, &quot;PST&quot;, &quot;SAS&quot;, &quot;SSA&quot;, &quot;SSF&quot;, &quot;SST&quot;,
+  &quot;TEA&quot;, &quot;TEC&quot;, &quot;TLA&quot;, &quot;TMN&quot;, &quot;TSA&quot;, &quot;TSS&quot;, &quot;UMC&quot;
+)
+# remove the unwated rows
+df &lt;- df %&gt;% filter(!(country_code %in% non_countries))</code></pre>
+</div>
+<div id="reshape-the-table" class="section level3">
+<h3>Reshape the table</h3>
+<p>Here I create a long data frame with columns indicating the country, year, and carbon dioxide emissions</p>
+<pre class="r"><code>long_df &lt;- df %&gt;%
+  select(-indicator_code, -indicator_name, -country_name) %&gt;%
+  gather(key = &quot;year&quot;, value = &quot;co2_per_cap&quot;, -country_code) %&gt;%
+  mutate(year = as.integer(year))
+
+skimr::skim_to_wide(long_df) %&gt;% skimr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">variable</th>
+<th align="center">missing</th>
+<th align="center">complete</th>
+<th align="center">n</th>
+<th align="center">min</th>
+<th align="center">max</th>
+<th align="center">empty</th>
+<th align="center">n_unique</th>
+<th align="center">mean</th>
+<th align="center">sd</th>
+<th align="center">p0</th>
+<th align="center">p25</th>
+<th align="center">p50</th>
+<th align="center">p75</th>
+<th align="center">p100</th>
+<th align="center">hist</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">character</td>
+<td align="center">country_code</td>
+<td align="center">0</td>
+<td align="center">12862</td>
+<td align="center">12862</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">218</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">integer</td>
+<td align="center">year</td>
+<td align="center">0</td>
+<td align="center">12862</td>
+<td align="center">12862</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">1989</td>
+<td align="center">17.03</td>
+<td align="center">1960</td>
+<td align="center">1974</td>
+<td align="center">1989</td>
+<td align="center">2004</td>
+<td align="center">2018</td>
+<td align="center">▇▇▇▇▇▇▇▇</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">co2_per_cap</td>
+<td align="center">2957</td>
+<td align="center">9905</td>
+<td align="center">12862</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.4</td>
+<td align="center">7.43</td>
+<td align="center">-0.02</td>
+<td align="center">0.37</td>
+<td align="center">1.61</td>
+<td align="center">6.01</td>
+<td align="center">100.7</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div id="clean-up-the-missing-data" class="section level3">
+<h3>Clean up the missing data</h3>
+<p>I removed the years from 2015, which contained no data. I also created a separate data frame containg only the countries with complete records since 1960.</p>
+<pre class="r"><code># 2015 and on don&#39;t have any data. rather than remove them by hand, This does so programatically
+good_years &lt;- long_df %&gt;%
+  group_by(year) %&gt;%
+  summarise(has_data = any(!is.na(co2_per_cap))) %&gt;%
+  filter(has_data) %&gt;%
+  pull(year)
+
+long_df &lt;- long_df %&gt;% filter(year %in% good_years)
+
+skimr::skim_to_wide(long_df) %&gt;% skimr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">variable</th>
+<th align="center">missing</th>
+<th align="center">complete</th>
+<th align="center">n</th>
+<th align="center">min</th>
+<th align="center">max</th>
+<th align="center">empty</th>
+<th align="center">n_unique</th>
+<th align="center">mean</th>
+<th align="center">sd</th>
+<th align="center">p0</th>
+<th align="center">p25</th>
+<th align="center">p50</th>
+<th align="center">p75</th>
+<th align="center">p100</th>
+<th align="center">hist</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">character</td>
+<td align="center">country_code</td>
+<td align="center">0</td>
+<td align="center">11990</td>
+<td align="center">11990</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">218</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">integer</td>
+<td align="center">year</td>
+<td align="center">0</td>
+<td align="center">11990</td>
+<td align="center">11990</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">1987</td>
+<td align="center">15.88</td>
+<td align="center">1960</td>
+<td align="center">1973</td>
+<td align="center">1987</td>
+<td align="center">2001</td>
+<td align="center">2014</td>
+<td align="center">▇▇▇▇▇▇▇▇</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">co2_per_cap</td>
+<td align="center">2085</td>
+<td align="center">9905</td>
+<td align="center">11990</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.4</td>
+<td align="center">7.43</td>
+<td align="center">-0.02</td>
+<td align="center">0.37</td>
+<td align="center">1.61</td>
+<td align="center">6.01</td>
+<td align="center">100.7</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code># create a dataframe with every available record
+long_all &lt;- long_df %&gt;% filter(is.na(co2_per_cap))
+
+# Choose only the countries that have complete records.
+complete_countries &lt;- long_df %&gt;%
+  group_by(country_code) %&gt;%
+  summarise(all_years = !any(is.na(co2_per_cap))) %&gt;%
+  filter(all_years) %&gt;%
+  pull(country_code)
+
+long_df &lt;- long_df %&gt;%
+  filter(country_code %in% complete_countries)
+
+skimr::skim_to_wide(long_df) %&gt;% skimr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="center">type</th>
+<th align="center">variable</th>
+<th align="center">missing</th>
+<th align="center">complete</th>
+<th align="center">n</th>
+<th align="center">min</th>
+<th align="center">max</th>
+<th align="center">empty</th>
+<th align="center">n_unique</th>
+<th align="center">mean</th>
+<th align="center">sd</th>
+<th align="center">p0</th>
+<th align="center">p25</th>
+<th align="center">p50</th>
+<th align="center">p75</th>
+<th align="center">p100</th>
+<th align="center">hist</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="center">character</td>
+<td align="center">country_code</td>
+<td align="center">0</td>
+<td align="center">8250</td>
+<td align="center">8250</td>
+<td align="center">3</td>
+<td align="center">3</td>
+<td align="center">0</td>
+<td align="center">150</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+</tr>
+<tr class="even">
+<td align="center">integer</td>
+<td align="center">year</td>
+<td align="center">0</td>
+<td align="center">8250</td>
+<td align="center">8250</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">1987</td>
+<td align="center">15.88</td>
+<td align="center">1960</td>
+<td align="center">1973</td>
+<td align="center">1987</td>
+<td align="center">2001</td>
+<td align="center">2014</td>
+<td align="center">▇▇▇▇▇▇▇▇</td>
+</tr>
+<tr class="odd">
+<td align="center">numeric</td>
+<td align="center">co2_per_cap</td>
+<td align="center">0</td>
+<td align="center">8250</td>
+<td align="center">8250</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">NA</td>
+<td align="center">4.36</td>
+<td align="center">7.55</td>
+<td align="center">-0.02</td>
+<td align="center">0.35</td>
+<td align="center">1.58</td>
+<td align="center">5.93</td>
+<td align="center">100.7</td>
+<td align="center">▇▁▁▁▁▁▁▁</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>long_df %&gt;% DT::datatable() %&gt;% widgetframe::frameWidget()</code></pre>
+<div id="htmlwidget-2" style="width:100%;height:576px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-2">{"x":{"url":"/post/2019-04-17-co2-emissions_files/figure-html//widgets/widget_unnamed-chunk-12.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+</div>
+<div id="time-to-take-a-look" class="section level2">
+<h2>Time to take a look</h2>
+<p>Here I’ll take a look at the countries which have a complete record from 1960 to 2014</p>
+<div id="everything" class="section level3">
+<h3>Everything</h3>
+<pre class="r"><code>ggplot(data = long_df) +
+  geom_line(aes(x = year, y = co2_per_cap, group = country_code))</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-13-.gif" width="1152" /></p>
+<p>This is pretty crowded and hard to see much on.</p>
+</div>
+<div id="countries-with-the-highest-emissions" class="section level3">
+<h3>Countries with the Highest Emissions</h3>
+<p>These countries had the highest average over the course of the dataset</p>
+<pre class="r"><code>long_df %&gt;%
+  group_by(country_code) %&gt;%
+  summarise(co2_avg = mean(co2_per_cap)) %&gt;%
+  arrange(desc(co2_avg)) %&gt;%
+  head(10) %&gt;%
+  ggplot() +
+  geom_col(aes(x = country_code, y = co2_avg)) +
+  scale_x_discrete(name = &quot;Country&quot;, labels = function(x) country_names[x])</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-14-.gif" width="1152" /></p>
+</div>
+<div id="a-closer-look-at-the-top-counries" class="section level3">
+<h3>A Closer Look at the Top Counries</h3>
+<pre class="r"><code>long_df %&gt;%
+  group_by(country_code) %&gt;%
+  summarise(co2_avg = mean(co2_per_cap)) %&gt;%
+  arrange(desc(co2_avg)) %&gt;%
+  head(10) %&gt;%
+  pull(country_code) %&gt;%
+  lapply(
+    function(x) ggplot(filter(long_df, country_code == x), aes(year, co2_per_cap)) +
+        geom_line() +
+        labs(title = country_names[x]) +
+        coord_cartesian(ylim = c(0, 100))
+  ) %&gt;%
+  walk(print)</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/testing,%20fig-.gif" width="1152" /></p>
+<p>There isn’t a consistent pattern amoung the countries with the highest per capita carbon dioxide emissions. Some are highly industrialized Western nations, which tend to have stable but high emissions. The others tend to be less stable over time, with spikes of extreme emission levels. Qatar is unique in that it’s baseline is consistently higher than anyone else’s and it has spikes to even more extreme levels</p>
+</div>
+</div>
+</div>
+<div id="main-visual" class="section level1">
+<h1>Main Visual</h1>
+<pre class="r"><code>plot1 &lt;- long_df %&gt;%
+  filter(
+    country_code %in%
+      c(&quot;USA&quot;, &quot;CHN&quot;, &quot;AUS&quot;, &quot;CAN&quot;, &quot;GBR&quot;, &quot;IND&quot;, &quot;JPN&quot;, &quot;PAK&quot;, &quot;VEN&quot;, &quot;VNM&quot;)
+  ) %&gt;%
+  mutate(Country = country_names[country_code]) %&gt;%
+  rename(`CO2 Emissions` = co2_per_cap, Year = year) %&gt;%
+  select(-country_code) %&gt;%
+  ggplot() +
+  geom_line(aes(x = Year, y = `CO2 Emissions`, color = Country), size = 2) +
+  scale_color_brewer(name = &quot;Country&quot;, labels = function(x) country_names[x], palette = &quot;Set3&quot;) +
+  scale_y_continuous(name = &quot;Tons of CO2 Per Capita&quot;) +
+  scale_x_continuous(name = &quot;Year&quot;, breaks = seq.int(from = 1960, to = 2015, by = 5)) +
+  theme(
+    plot.title = element_text(size = 24, vjust = .5, hjust = .5),
+    axis.title = element_text(size = 16, hjust = .5, vjust = .5),
+    panel.background = element_rect(fill = &quot;white&quot;),
+    legend.title = element_text(face = &quot;bold&quot;),
+    panel.grid.major.y = element_line(color = &quot;grey75&quot;, size = .1, linetype = &quot;solid&quot;)
+  ) +
+  ggtitle(&quot;Per Capita Carbon Dioxide Emissions&quot;)
+plotly::ggplotly(plot1) %&gt;% widgetframe::frameWidget()</code></pre>
+<div id="htmlwidget-3" style="width:100%;height:576px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-3">{"x":{"url":"/post/2019-04-17-co2-emissions_files/figure-html//widgets/widget_unnamed-chunk-15.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+</div>
+<div id="essay" class="section level1">
+<h1>Essay</h1>
+<p>For this project I decided to work with the carbon dioxide emissions dataset from the World Bank. Global warming and it’s effects are going to become increasily influential and damaging over the course of my lifetime. Human activity and carbon dioxide released by the combustion of fossil fuels in particular have major impacts on the environment. This dataset tracks the amount of carbon dioxide emitted since 1960 in every country. Because of the breakup of the Soviet Union in the early 1990’s Several major countries including Germany and Russia were not in existence for the entirety of the dataset. I looked at counries with complete records since 1960, because I was interested in the early years of the data set and how various countries and the world have progressed over time.</p>
+<p>This visualization shows the carbon dioxide emissions of some of the largest countries since 1960. It clearly shows the massive impact of the United States, even in relation to other similarly developed and industrialized nations. US Emissions have leveled off and slightly declined starting in the early 90’s. The U.S. still leads the way in terms of emissions, but other countries are quickly catching up. Some of these large countries have been able to reduce their emisions, but this is not the general trend. China has had massive growth in emissions as a result of its rapid industrialization and economic growth. Much of the world’s population lives in poorer, less developed nations that currently have little carbon output, but that will likely change as they industrialize.</p>
+</div>
+<div id="extra" class="section level1">
+<h1>Extra</h1>
+<p>It was hard to do very much with just the co2 emission numbers, so I wanted to around a little with the rest of the data from the World Develpment Index. This isn’t finished, but there were a few interesting things, so I left it in.</p>
+<pre class="r"><code>wb_df &lt;- read_csv(&quot;C:/datasets/WDI/WDIData.csv&quot;)
+names(wb_df) &lt;- names(wb_df) %&gt;% tolower() %&gt;% str_replace(&quot; &quot;, &quot;_&quot;)</code></pre>
+<pre class="r"><code>wb_df %&gt;%
+  select(indicator_name, indicator_code) %&gt;%
+  unique() %&gt;%
+  DT::datatable() %&gt;%
+  widgetframe::frameWidget()</code></pre>
+<div id="htmlwidget-4" style="width:100%;height:576px;" class="widgetframe html-widget"></div>
+<script type="application/json" data-for="htmlwidget-4">{"x":{"url":"/post/2019-04-17-co2-emissions_files/figure-html//widgets/widget_unnamed-chunk-17.html","options":{"xdomain":"*","allowfullscreen":false,"lazyload":false}},"evals":[],"jsHooks":[]}</script>
+<pre class="r"><code>wb_names &lt;- wb_df %&gt;%
+  select(country_code, country_name) %&gt;%
+  unique() %&gt;%
+  (function(x) x %&gt;% pull(country_name) %&gt;% set_names(x %&gt;% pull(country_code))) %&gt;%
+  sort()</code></pre>
+<pre class="r"><code>wb_df &lt;- wb_df %&gt;% filter(!(country_code %in% non_countries))</code></pre>
+<pre class="r"><code>codes &lt;- c(
+  &quot;AG.LND.TOTL.K2&quot;,
+  &quot;SP.URB.TOTL&quot;,
+  &quot;SP.RUR.TOTL&quot;,
+  &quot;AG.LND.AGRI.K2&quot;,
+  &quot;AG.LND.CROP.ZS&quot;,
+  &quot;SP.POP.TOTL&quot;,
+  &quot;EN.ATM.CO2E.KT&quot;,
+  &quot;NY.GDP.MKTP.KD&quot;,
+  &quot;AG.SRF.TOTL.K2&quot;,
+  &quot;ER.FSH.PROD.MT&quot;,
+  &quot;TX.VAL.MRCH.CD.WT&quot;,
+  &quot;TM.VAL.MRCH.CD.WT&quot;,
+  &quot;SP.DYN.CBRT.IN&quot;,
+  &quot;SP.DYN.CDRT.IN&quot;
+)
+
+col_ids &lt;- c(
+  &quot;total_land_area&quot;,
+  &quot;urban_population&quot;,
+  &quot;rural_population&quot;,
+  &quot;agriculture_land_area&quot;,
+  &quot;cropland_ratio&quot;,
+  &quot;population&quot;,
+  &quot;co2_emissions&quot;,
+  &quot;gdp&quot;,
+  &quot;surface_area&quot;,
+  &quot;fishery_production&quot;,
+  &quot;merchandise_exports&quot;,
+  &quot;merchandise_imports&quot;,
+  &quot;birth_rate&quot;,
+  &quot;death_rate&quot;
+) %&gt;%
+  set_names(codes)
+
+world &lt;- wb_df %&gt;%
+  filter(indicator_code %in% codes) %&gt;%
+  mutate(temp_col = col_ids[indicator_code]) %&gt;%
+  select(-indicator_code, -indicator_name, -x64, -`1960`) %&gt;%
+  gather(key = &quot;year&quot;, value = &quot;value&quot;, -country_code, -temp_col, -country_name) %&gt;%
+  mutate(year = as.integer(year)) %&gt;%
+  spread(temp_col, value) %&gt;%
+  mutate(
+    cropland_area = total_land_area * cropland_ratio,
+    births = floor(birth_rate * population / 1000),
+    deaths = floor(death_rate * population / 1000)
+  ) %&gt;%
+  select(-birth_rate, -death_rate, -cropland_ratio)
+
+
+w_years &lt;- world %&gt;%
+  group_by(year) %&gt;%
+  summarise(has_data = any(!is.na(co2_emissions))) %&gt;%
+  filter(has_data) %&gt;%
+  pull(year)
+
+world &lt;- world %&gt;% filter(year %in% w_years)
+
+ccc &lt;- world %&gt;%
+  group_by(country_code) %&gt;%
+  summarise(all_years = !any(is.na(co2_emissions) | is.na(gdp) | is.na(agriculture_land_area))) %&gt;%
+  filter(all_years) %&gt;%
+  pull(country_code)
+
+world &lt;- world %&gt;%
+  filter(country_code %in% ccc) %&gt;%
+  mutate(
+    cropland_area = if_else(is.na(cropland_area) &amp; country_code == &quot;HKG&quot;, 1000, cropland_area),
+    merchandise_exports = if_else(is.na(merchandise_exports) &amp; country_code == &quot;BHS&quot;, lag(merchandise_exports), merchandise_exports),
+    merchandise_imports = if_else(is.na(merchandise_imports) &amp; country_code == &quot;NPL&quot;, 75000000, merchandise_imports)
+  )</code></pre>
+<pre class="r"><code>world_total &lt;- world %&gt;% filter(country_code == &quot;WLD&quot;)
+model_data &lt;- world %&gt;% filter(country_code != &quot;WLD&quot;)</code></pre>
+<pre class="r"><code>model_data %&gt;%
+  select(-country_code, -country_name) %&gt;%
+  cor() %&gt;%
+  corrplot::corrplot(method = &quot;number&quot;)</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-22-.gif" width="1152" /></p>
+<pre class="r"><code>model_data %&gt;%
+  select(-country_code, -country_name) %&gt;%
+  GGally::ggpairs()</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-23-.gif" width="1152" /></p>
+<pre class="r"><code>model_variables &lt;- names(model_data)[
+  !(names(model_data) %in% c(&quot;country_name&quot;, &quot;country_code&quot;, &quot;co2_emissions&quot;, &quot;population&quot;))
+]
+model_formula &lt;- as.formula(
+  paste0(
+    &quot;co2_emissions ~ &quot;,
+    paste(model_variables, collapse = &quot;+&quot;)
+  )
+)
+linear_model &lt;- lm(formula = model_formula, data = model_data)</code></pre>
+<pre class="r"><code>summary(linear_model)</code></pre>
+<pre><code>## 
+## Call:
+## lm(formula = model_formula, data = model_data)
+## 
+## Residuals:
+##      Min       1Q   Median       3Q      Max 
+## -1543020   -23185    18769    54270  2132070 
+## 
+## Coefficients:
+##                         Estimate Std. Error t value Pr(&gt;|t|)    
+## (Intercept)            3.136e+06  4.235e+05   7.405 1.57e-13 ***
+## year                  -1.591e+03  2.132e+02  -7.464 1.01e-13 ***
+## agriculture_land_area  2.846e-01  1.145e-02  24.867  &lt; 2e-16 ***
+## fishery_production     3.731e-02  1.762e-03  21.176  &lt; 2e-16 ***
+## gdp                    2.623e-07  6.876e-09  38.150  &lt; 2e-16 ***
+## merchandise_exports    1.462e-07  1.051e-07   1.391    0.164    
+## merchandise_imports   -4.789e-07  9.744e-08  -4.915 9.21e-07 ***
+## rural_population       6.928e-04  1.339e-04   5.174 2.40e-07 ***
+## surface_area           1.520e+00  5.916e-02  25.699  &lt; 2e-16 ***
+## total_land_area       -1.632e+00  6.412e-02 -25.454  &lt; 2e-16 ***
+## urban_population       6.289e-03  2.407e-04  26.129  &lt; 2e-16 ***
+## cropland_area         -3.750e-02  1.984e-03 -18.906  &lt; 2e-16 ***
+## births                -6.575e-02  5.293e-03 -12.421  &lt; 2e-16 ***
+## deaths                 2.197e-02  1.254e-02   1.751    0.080 .  
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1
+## 
+## Residual standard error: 197300 on 4252 degrees of freedom
+## Multiple R-squared:  0.9265, Adjusted R-squared:  0.9263 
+## F-statistic:  4122 on 13 and 4252 DF,  p-value: &lt; 2.2e-16</code></pre>
+<pre class="r"><code>broom::tidy(linear_model) %&gt;% knitr::kable()</code></pre>
+<table>
+<thead>
+<tr class="header">
+<th align="left">term</th>
+<th align="right">estimate</th>
+<th align="right">std.error</th>
+<th align="right">statistic</th>
+<th align="right">p.value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="left">(Intercept)</td>
+<td align="right">3.136178e+06</td>
+<td align="right">4.235181e+05</td>
+<td align="right">7.405063</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">year</td>
+<td align="right">-1.591368e+03</td>
+<td align="right">2.131922e+02</td>
+<td align="right">-7.464476</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">agriculture_land_area</td>
+<td align="right">2.846447e-01</td>
+<td align="right">1.144680e-02</td>
+<td align="right">24.866673</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">fishery_production</td>
+<td align="right">3.730960e-02</td>
+<td align="right">1.761900e-03</td>
+<td align="right">21.175523</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">gdp</td>
+<td align="right">3.000000e-07</td>
+<td align="right">0.000000e+00</td>
+<td align="right">38.149605</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">merchandise_exports</td>
+<td align="right">1.000000e-07</td>
+<td align="right">1.000000e-07</td>
+<td align="right">1.390780</td>
+<td align="right">0.1643649</td>
+</tr>
+<tr class="odd">
+<td align="left">merchandise_imports</td>
+<td align="right">-5.000000e-07</td>
+<td align="right">1.000000e-07</td>
+<td align="right">-4.915044</td>
+<td align="right">0.0000009</td>
+</tr>
+<tr class="even">
+<td align="left">rural_population</td>
+<td align="right">6.928000e-04</td>
+<td align="right">1.339000e-04</td>
+<td align="right">5.173862</td>
+<td align="right">0.0000002</td>
+</tr>
+<tr class="odd">
+<td align="left">surface_area</td>
+<td align="right">1.520484e+00</td>
+<td align="right">5.916480e-02</td>
+<td align="right">25.699124</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">total_land_area</td>
+<td align="right">-1.632016e+00</td>
+<td align="right">6.411650e-02</td>
+<td align="right">-25.453909</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">urban_population</td>
+<td align="right">6.288900e-03</td>
+<td align="right">2.407000e-04</td>
+<td align="right">26.129286</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">cropland_area</td>
+<td align="right">-3.750420e-02</td>
+<td align="right">1.983700e-03</td>
+<td align="right">-18.906058</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="odd">
+<td align="left">births</td>
+<td align="right">-6.574840e-02</td>
+<td align="right">5.293300e-03</td>
+<td align="right">-12.421116</td>
+<td align="right">0.0000000</td>
+</tr>
+<tr class="even">
+<td align="left">deaths</td>
+<td align="right">2.197010e-02</td>
+<td align="right">1.254490e-02</td>
+<td align="right">1.751309</td>
+<td align="right">0.0799648</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>world_prediction &lt;- world_total %&gt;%
+  select(-country_code, -country_name, -co2_emissions, -population) %&gt;%
+  predict(object = linear_model, newdata = .)
+world_total %&gt;%
+  select(year, co2_emissions) %&gt;%
+  rename(actual = co2_emissions) %&gt;%
+  add_column(prediction = world_prediction) %&gt;%
+  gather(key = &quot;type&quot;, value = &quot;co2_tons&quot;, -year) %&gt;%
+  ggplot() +
+  geom_point(aes(x = year, y = co2_tons, color = type))</code></pre>
+<p><img src="/post/2019-04-17-co2-emissions_files/figure-html/unnamed-chunk-27-.gif" width="1152" /></p>
+</div>

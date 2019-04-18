@@ -1,0 +1,373 @@
+---
+title: CO2 Emissions
+author: ~
+date: '2019-04-17'
+slug: co2-emissions
+categories: ["R"]
+tags: []
+type: post
+description: description
+keywords:
+  - key
+  - words
+topics:
+  - topic 1
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 12, fig.height = 6, tidy = "styler", animation.hook = "gifski", df_print = "kable")
+```
+
+# Carbon Dioxide Emissions from the World Bank's World Development Index
+
+```{r message = FALSE}
+library(tidyverse)
+```
+
+## Preparing the data
+First we need to import the data and clean up any issues
+
+### Read in the file
+
+```{r message=FALSE}
+df <- read_csv("C:/datasets/co2_global_emissions.csv")
+```
+
+### Take a look at the data
+I use the str function to inspect the structure of the dataframe.
+There are two columns for the inidicator which in this case are all the same and can be removed. It also makes sense to convert the table to a long format instead of having each year represented by its own column.
+
+```{r}
+str(df)
+```
+
+### Fix the column names
+Here I convert the column names to camel case
+```{r}
+names(df) <- names(df) %>% tolower() %>% str_replace(" ", "_")
+```
+
+### Let's take another look
+The skimr package contains tools for summarising various data structures in R.
+
+```{r}
+df %>% skimr::skim_to_wide() %>% skimr::kable()
+```
+
+### Is anything missing
+
+```{r message=FALSE, warning=FALSE, results='hide'}
+library(mi)
+df %>% as.data.frame() %>% missing_data.frame() %>% image()
+```
+
+### Those aren't Countries!
+There are quite a few regional and economic groups included as countries. I decided to remove these and keep just the countries and the value for the world as a whole. The datatable made it easier to browse through the data and find what I wanted to remove.
+
+
+```{r}
+# Lookup table mapping country codes to names
+country_names <- df %>%
+  pull(country_name) %>%
+  set_names(df %>% pull(country_code)) %>%
+  sort()
+
+df %>%
+  select(country_code, country_name) %>%
+  unique() %>%
+  DT::datatable() %>%
+  widgetframe::frameWidget()
+```
+
+```{r}
+non_countries <- c(
+  "ARB", "CEB", "CSS", "EAP", "EAR", "EAS", "ECA", "ECS", "EMU",
+  "EUU", "FCS", "HIC", "HPC", "IBD", "IBT", "IDA", "IDB", "IDX", "INX",
+  "LAC", "LCN", "LDC", "LIC", "LMC", "LMY", "LTE", "MEA", "MIC", "MNA",
+  "NAC", "OED", "OSS", "PRE", "PSS", "PST", "SAS", "SSA", "SSF", "SST",
+  "TEA", "TEC", "TLA", "TMN", "TSA", "TSS", "UMC"
+)
+# remove the unwated rows
+df <- df %>% filter(!(country_code %in% non_countries))
+```
+
+### Reshape the table
+Here I create a long data frame with columns indicating the country, year, and carbon dioxide emissions
+```{r}
+long_df <- df %>%
+  select(-indicator_code, -indicator_name, -country_name) %>%
+  gather(key = "year", value = "co2_per_cap", -country_code) %>%
+  mutate(year = as.integer(year))
+
+skimr::skim_to_wide(long_df) %>% skimr::kable()
+```
+
+### Clean up the missing data
+I removed the years from 2015, which contained no data. I also created a separate data frame containg only the countries with complete records since 1960.
+```{r}
+# 2015 and on don't have any data. rather than remove them by hand, This does so programatically
+good_years <- long_df %>%
+  group_by(year) %>%
+  summarise(has_data = any(!is.na(co2_per_cap))) %>%
+  filter(has_data) %>%
+  pull(year)
+
+long_df <- long_df %>% filter(year %in% good_years)
+
+skimr::skim_to_wide(long_df) %>% skimr::kable()
+```
+
+
+```{r}
+# create a dataframe with every available record
+long_all <- long_df %>% filter(is.na(co2_per_cap))
+
+# Choose only the countries that have complete records.
+complete_countries <- long_df %>%
+  group_by(country_code) %>%
+  summarise(all_years = !any(is.na(co2_per_cap))) %>%
+  filter(all_years) %>%
+  pull(country_code)
+
+long_df <- long_df %>%
+  filter(country_code %in% complete_countries)
+
+skimr::skim_to_wide(long_df) %>% skimr::kable()
+```
+
+```{r}
+long_df %>% DT::datatable() %>% widgetframe::frameWidget()
+```
+
+## Time to take a look
+Here I'll take a look at the countries which have a complete record from 1960 to 2014
+
+### Everything
+
+```{r}
+ggplot(data = long_df) +
+  geom_line(aes(x = year, y = co2_per_cap, group = country_code))
+```
+
+
+This is pretty crowded and hard to see much on.
+
+### Countries with the Highest Emissions
+
+These countries had the highest average over the course of the dataset
+```{r}
+long_df %>%
+  group_by(country_code) %>%
+  summarise(co2_avg = mean(co2_per_cap)) %>%
+  arrange(desc(co2_avg)) %>%
+  head(10) %>%
+  ggplot() +
+  geom_col(aes(x = country_code, y = co2_avg)) +
+  scale_x_discrete(name = "Country", labels = function(x) country_names[x])
+```
+
+### A Closer Look at the Top Counries
+
+```{r testing, fig,show = 'animate'}
+long_df %>%
+  group_by(country_code) %>%
+  summarise(co2_avg = mean(co2_per_cap)) %>%
+  arrange(desc(co2_avg)) %>%
+  head(10) %>%
+  pull(country_code) %>%
+  lapply(
+    function(x) ggplot(filter(long_df, country_code == x), aes(year, co2_per_cap)) +
+        geom_line() +
+        labs(title = country_names[x]) +
+        coord_cartesian(ylim = c(0, 100))
+  ) %>%
+  walk(print)
+```
+
+There isn't a consistent pattern amoung the countries with the highest per capita carbon dioxide emissions. Some are highly industrialized Western nations, which tend to have stable but high emissions. The others tend to be less stable over time, with spikes of extreme emission levels. Qatar is unique in that it's baseline is consistently higher than anyone else's and it has spikes to even more extreme levels
+
+# Main Visual
+
+```{r fig.width=10}
+plot1 <- long_df %>%
+  filter(
+    country_code %in%
+      c("USA", "CHN", "AUS", "CAN", "GBR", "IND", "JPN", "PAK", "VEN", "VNM")
+  ) %>%
+  mutate(Country = country_names[country_code]) %>%
+  rename(`CO2 Emissions` = co2_per_cap, Year = year) %>%
+  select(-country_code) %>%
+  ggplot() +
+  geom_line(aes(x = Year, y = `CO2 Emissions`, color = Country), size = 2) +
+  scale_color_brewer(name = "Country", labels = function(x) country_names[x], palette = "Set3") +
+  scale_y_continuous(name = "Tons of CO2 Per Capita") +
+  scale_x_continuous(name = "Year", breaks = seq.int(from = 1960, to = 2015, by = 5)) +
+  theme(
+    plot.title = element_text(size = 24, vjust = .5, hjust = .5),
+    axis.title = element_text(size = 16, hjust = .5, vjust = .5),
+    panel.background = element_rect(fill = "white"),
+    legend.title = element_text(face = "bold"),
+    panel.grid.major.y = element_line(color = "grey75", size = .1, linetype = "solid")
+  ) +
+  ggtitle("Per Capita Carbon Dioxide Emissions")
+plotly::ggplotly(plot1) %>% widgetframe::frameWidget()
+```
+
+# Essay
+
+For this project I decided to work with the carbon dioxide emissions dataset from the World Bank. Global warming and it's effects are going to become increasily influential and damaging over the course of my lifetime. Human activity and carbon dioxide released by the combustion of fossil fuels in particular have major impacts on the environment. This dataset tracks the amount of carbon dioxide emitted since 1960 in every country. Because of the breakup of the Soviet Union in the early 1990's Several major countries including Germany and Russia were not in existence for the entirety of the dataset. I looked at counries with complete records since 1960, because I was interested in the early years of the data set and how various countries and the world have progressed over time.
+
+This visualization shows the carbon dioxide emissions of some of the largest countries since 1960. It clearly shows the massive impact of the United States, even in relation to other similarly developed and industrialized nations. US Emissions have leveled off and slightly declined starting in the early 90's. The U.S. still leads the way in terms of emissions, but other countries are quickly catching up. Some of these large countries have been able to reduce their emisions, but this is not the general trend. China has had massive growth in emissions as a result of its rapid industrialization and economic growth. Much of the world's population lives in poorer, less developed nations that currently have little carbon output, but that will likely change as they industrialize.
+
+# Extra
+It was hard to do very much with just the co2 emission numbers, so I wanted to around a little with the rest of the data from the World Develpment Index. This isn't finished, but there were a few interesting things, so I left it in.
+```{r warning=FALSE, message=FALSE}
+wb_df <- read_csv("C:/datasets/WDI/WDIData.csv")
+names(wb_df) <- names(wb_df) %>% tolower() %>% str_replace(" ", "_")
+```
+
+```{r}
+wb_df %>%
+  select(indicator_name, indicator_code) %>%
+  unique() %>%
+  DT::datatable() %>%
+  widgetframe::frameWidget()
+```
+
+```{r}
+wb_names <- wb_df %>%
+  select(country_code, country_name) %>%
+  unique() %>%
+  (function(x) x %>% pull(country_name) %>% set_names(x %>% pull(country_code))) %>%
+  sort()
+```
+
+```{r}
+wb_df <- wb_df %>% filter(!(country_code %in% non_countries))
+```
+
+```{r}
+codes <- c(
+  "AG.LND.TOTL.K2",
+  "SP.URB.TOTL",
+  "SP.RUR.TOTL",
+  "AG.LND.AGRI.K2",
+  "AG.LND.CROP.ZS",
+  "SP.POP.TOTL",
+  "EN.ATM.CO2E.KT",
+  "NY.GDP.MKTP.KD",
+  "AG.SRF.TOTL.K2",
+  "ER.FSH.PROD.MT",
+  "TX.VAL.MRCH.CD.WT",
+  "TM.VAL.MRCH.CD.WT",
+  "SP.DYN.CBRT.IN",
+  "SP.DYN.CDRT.IN"
+)
+
+col_ids <- c(
+  "total_land_area",
+  "urban_population",
+  "rural_population",
+  "agriculture_land_area",
+  "cropland_ratio",
+  "population",
+  "co2_emissions",
+  "gdp",
+  "surface_area",
+  "fishery_production",
+  "merchandise_exports",
+  "merchandise_imports",
+  "birth_rate",
+  "death_rate"
+) %>%
+  set_names(codes)
+
+world <- wb_df %>%
+  filter(indicator_code %in% codes) %>%
+  mutate(temp_col = col_ids[indicator_code]) %>%
+  select(-indicator_code, -indicator_name, -x64, -`1960`) %>%
+  gather(key = "year", value = "value", -country_code, -temp_col, -country_name) %>%
+  mutate(year = as.integer(year)) %>%
+  spread(temp_col, value) %>%
+  mutate(
+    cropland_area = total_land_area * cropland_ratio,
+    births = floor(birth_rate * population / 1000),
+    deaths = floor(death_rate * population / 1000)
+  ) %>%
+  select(-birth_rate, -death_rate, -cropland_ratio)
+
+
+w_years <- world %>%
+  group_by(year) %>%
+  summarise(has_data = any(!is.na(co2_emissions))) %>%
+  filter(has_data) %>%
+  pull(year)
+
+world <- world %>% filter(year %in% w_years)
+
+ccc <- world %>%
+  group_by(country_code) %>%
+  summarise(all_years = !any(is.na(co2_emissions) | is.na(gdp) | is.na(agriculture_land_area))) %>%
+  filter(all_years) %>%
+  pull(country_code)
+
+world <- world %>%
+  filter(country_code %in% ccc) %>%
+  mutate(
+    cropland_area = if_else(is.na(cropland_area) & country_code == "HKG", 1000, cropland_area),
+    merchandise_exports = if_else(is.na(merchandise_exports) & country_code == "BHS", lag(merchandise_exports), merchandise_exports),
+    merchandise_imports = if_else(is.na(merchandise_imports) & country_code == "NPL", 75000000, merchandise_imports)
+  )
+```
+
+```{r}
+world_total <- world %>% filter(country_code == "WLD")
+model_data <- world %>% filter(country_code != "WLD")
+```
+
+```{r}
+model_data %>%
+  select(-country_code, -country_name) %>%
+  cor() %>%
+  corrplot::corrplot(method = "number")
+```
+
+```{r fig.height=12}
+model_data %>%
+  select(-country_code, -country_name) %>%
+  GGally::ggpairs()
+```
+
+```{r}
+model_variables <- names(model_data)[
+  !(names(model_data) %in% c("country_name", "country_code", "co2_emissions", "population"))
+]
+model_formula <- as.formula(
+  paste0(
+    "co2_emissions ~ ",
+    paste(model_variables, collapse = "+")
+  )
+)
+linear_model <- lm(formula = model_formula, data = model_data)
+```
+
+```{r}
+summary(linear_model)
+```
+
+```{r}
+broom::tidy(linear_model) %>% knitr::kable()
+```
+
+```{r}
+world_prediction <- world_total %>%
+  select(-country_code, -country_name, -co2_emissions, -population) %>%
+  predict(object = linear_model, newdata = .)
+world_total %>%
+  select(year, co2_emissions) %>%
+  rename(actual = co2_emissions) %>%
+  add_column(prediction = world_prediction) %>%
+  gather(key = "type", value = "co2_tons", -year) %>%
+  ggplot() +
+  geom_point(aes(x = year, y = co2_tons, color = type))
+```
